@@ -15,3 +15,4 @@ def health(db: Session = Depends(get_db)):
     except Exception as e:
         print("DB ERROR:", e)
         raise HTTPException(status_code=503, detail="database unavailable")
+    
