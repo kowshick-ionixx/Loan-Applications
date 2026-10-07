@@ -9,3 +9,7 @@ def add(db: Session, customer: Customer) -> None:
 
 def get_by_id(db: Session, customer_id: int) -> Customer | None:
     return db.get(Customer, customer_id)
+
+
+def delete(db: Session, customer: Customer) -> None:
+    db.delete(customer)

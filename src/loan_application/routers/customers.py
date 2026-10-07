@@ -15,3 +15,13 @@ def create_customer(data: CustomerCreate, db: DbSession):
 @router.get("/{customer_id}", response_model=CustomerOut)
 def get_customer(customer_id: int, db: DbSession):
     return customer_service.get_customer(db, customer_id)
+
+
+@router.put("/{customer_id}", response_model=CustomerOut)
+def update_customer(customer_id: int, data: CustomerCreate, db: DbSession):
+    return customer_service.update_customer(db, customer_id, data)
+
+
+@router.delete("/{customer_id}", response_model=CustomerOut)
+def delete_customer(customer_id: int, db: DbSession):
+    return customer_service.delete_customer(db, customer_id)

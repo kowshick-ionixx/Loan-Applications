@@ -2,9 +2,9 @@ import logging
 
 from sqlalchemy import create_engine
 
-import loan_application
 from alembic import context
-from loan_application.db import DATABASE_URL, Base
+from loan_application.db import DATABASE_URL
+from loan_application.models import Base
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 

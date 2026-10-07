@@ -4,7 +4,6 @@ from decimal import Decimal
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, PastDate
 
 
-# Data the client sends (POST /api/customers). Pydantic checks every field.
 class CustomerCreate(BaseModel):
     name: str = Field(min_length=3, max_length=50, pattern=r"^[A-Za-z ]+$")
     email: EmailStr
@@ -13,9 +12,8 @@ class CustomerCreate(BaseModel):
     monthly_income: Decimal = Field(gt=0)
 
 
-# Data the API sends back.
 class CustomerOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)  # read values from a Customer object
+    model_config = ConfigDict(from_attributes=True)
 
     id: int
     name: str
