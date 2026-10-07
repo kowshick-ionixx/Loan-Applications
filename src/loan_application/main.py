@@ -1,17 +1,17 @@
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import FastAPI
 from sqlalchemy import text
-from sqlalchemy.orm import Session
- 
-from loan_application.db import get_db
- 
+
+from loan_application.db import DbSession
+from loan_application.exceptions import AppError, app_error_handler
+from loan_application.routers import customers
+
 app = FastAPI(title="Loan Application Service")
- 
- 
+app.add_exception_handler(AppError, app_error_handler)
+app.include_router(customers.router)
+
+
 @app.get("/health")
-def health(db: Session = Depends(get_db)):
-    try:
-        db.execute(text("SELECT 1"))
-        return {"status": "ok", "database": "connected"}
-    except Exception as e:
-        print("DB ERROR:", e)
-        raise HTTPException(status_code=503, detail="database unavailable")
+def health(db: DbSession):
+    db.execute(text("SELECT 1"))
+    return {"status": "ok"}
+
