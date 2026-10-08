@@ -60,9 +60,11 @@ async def validation_error_handler(
     details = [
         {
             "field": str(e["loc"][-1]),
-            "message": "is required"
-            if e["type"] == "missing"
-            else FIELD_MESSAGES.get(str(e["loc"][-1]), e["msg"]),
+            "message": (
+                "is required"
+                if e["type"] == "missing"
+                else FIELD_MESSAGES.get(str(e["loc"][-1]), e["msg"])
+            ),
         }
         for e in errors
     ]

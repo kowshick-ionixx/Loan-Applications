@@ -1,28 +1,26 @@
-import json
 import logging
 from contextvars import ContextVar
-from datetime import UTC, datetime
 
 request_id_var: ContextVar[str | None] = ContextVar("request_id", default=None)
 
 
-class JsonFormatter(logging.Formatter):
-    def format(self, record: logging.LogRecord) -> str:
-        entry = {
-            "time": datetime.fromtimestamp(record.created, UTC).isoformat(),
-            "level": record.levelname,
-            "logger": record.name,
-            "request_id": request_id_var.get(),
-            "message": record.getMessage(),
-        }
-        if record.exc_info:
-            entry["exception"] = self.formatException(record.exc_info)
-        return json.dumps(entry)
+class RequestIdFilter(logging.Filter):
+    # Adds the current request id to every log line
+    def filter(self, record: logging.LogRecord) -> bool:
+        record.request_id = request_id_var.get() or "-"
+        return True
 
 
 def setup_logging() -> None:
     handler = logging.StreamHandler()
-    handler.setFormatter(JsonFormatter())
+    handler.setFormatter(
+        logging.Formatter(
+            fmt="%(asctime)s | %(levelname)-7s | %(request_id)s | %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+    )
+    handler.addFilter(RequestIdFilter())
+
     logging.basicConfig(level=logging.INFO, handlers=[handler], force=True)
     logging.getLogger("uvicorn").handlers = []
     logging.getLogger("uvicorn").propagate = True
