@@ -1,10 +1,14 @@
-from fastapi import APIRouter
+from typing import Annotated
 
-from loan_application.db import DbSession
+from fastapi import APIRouter, Path
+
+from loan_application.db import MAX_ID, DbSession
 from loan_application.schemas.customer import CustomerCreate, CustomerOut
 from loan_application.services import customer_service
 
-router = APIRouter(prefix="/api/customers")
+router = APIRouter(prefix="/api/customers", tags=["customers"])
+
+CustomerId = Annotated[int, Path(gt=0, le=MAX_ID)]
 
 
 @router.post("", response_model=CustomerOut, status_code=201)
@@ -13,15 +17,15 @@ def create_customer(data: CustomerCreate, db: DbSession):
 
 
 @router.get("/{customer_id}", response_model=CustomerOut)
-def get_customer(customer_id: int, db: DbSession):
+def get_customer(customer_id: CustomerId, db: DbSession):
     return customer_service.get_customer(db, customer_id)
 
 
 @router.put("/{customer_id}", response_model=CustomerOut)
-def update_customer(customer_id: int, data: CustomerCreate, db: DbSession):
+def update_customer(customer_id: CustomerId, data: CustomerCreate, db: DbSession):
     return customer_service.update_customer(db, customer_id, data)
 
 
 @router.delete("/{customer_id}", response_model=CustomerOut)
-def delete_customer(customer_id: int, db: DbSession):
+def delete_customer(customer_id: CustomerId, db: DbSession):
     return customer_service.delete_customer(db, customer_id)
