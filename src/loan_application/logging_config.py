@@ -13,7 +13,7 @@ class RequestIdFilter(logging.Filter):
 
 def setup_logging() -> None:
     handler = logging.StreamHandler()
-    handler.setFormatter(
+    handler.setFormatter( 
         logging.Formatter(
             fmt="%(asctime)s | %(levelname)-7s | %(request_id)s | %(message)s",
             datefmt="%Y-%m-%d %H:%M:%S",
@@ -24,4 +24,4 @@ def setup_logging() -> None:
     logging.basicConfig(level=logging.INFO, handlers=[handler], force=True)
     logging.getLogger("uvicorn").handlers = []
     logging.getLogger("uvicorn").propagate = True
-    logging.getLogger("uvicorn.access").disabled = True
+    logging.getLogger("uvicorn.access").disabled = False
