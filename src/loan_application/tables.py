@@ -15,7 +15,7 @@ class Customer(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     name:Mapped[str]= mapped_column(String(50),nullable=False)
     email: Mapped[str] = mapped_column(String(255), unique=True , nullable=False)
-    phone: Mapped[str] = mapped_column(String(10), nullable=False)
+    phone: Mapped[str] = mapped_column(String(10), unique=True, nullable=False)
     date_of_birth: Mapped[date]=mapped_column(Date, nullable=False)
     monthly_income: Mapped[Decimal] = mapped_column(Numeric(12, 2),nullable=False)
 
