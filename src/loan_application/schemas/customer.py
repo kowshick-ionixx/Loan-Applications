@@ -22,3 +22,13 @@ class CustomerOut(BaseModel):
     phone: str
     date_of_birth: date
     monthly_income: float
+
+
+class CustomerSummary(BaseModel):
+    customer_id: int
+    name: str
+    total_loans: int
+    approved_loans: int
+    rejected_loans: int
+    total_approved_amount: float
+    total_monthly_emi: float

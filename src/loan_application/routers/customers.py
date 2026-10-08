@@ -3,8 +3,12 @@ from typing import Annotated
 from fastapi import APIRouter, Path
 
 from loan_application.db import MAX_ID, DbSession
-from loan_application.schemas.customer import CustomerCreate, CustomerOut
-from loan_application.services import customer_service
+from loan_application.schemas.customer import (
+    CustomerCreate,
+    CustomerOut,
+    CustomerSummary,
+)
+from loan_application.services import customer_service, loan_service
 
 router = APIRouter(prefix="/api/customers", tags=["customers"])
 
@@ -19,6 +23,11 @@ def create_customer(data: CustomerCreate, db: DbSession):
 @router.get("/{customer_id}", response_model=CustomerOut)
 def get_customer(customer_id: CustomerId, db: DbSession):
     return customer_service.get_customer(db, customer_id)
+
+
+@router.get("/{customer_id}/summary", response_model=CustomerSummary)
+def get_customer_summary(customer_id: CustomerId, db: DbSession):
+    return loan_service.get_customer_summary(db, customer_id)
 
 
 @router.put("/{customer_id}", response_model=CustomerOut)

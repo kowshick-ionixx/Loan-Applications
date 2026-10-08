@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from loan_application.exceptions import AppError
 from loan_application.models import Customer, Loan
 from loan_application.repositories import loan_repository
+from loan_application.schemas.customer import CustomerSummary
 from loan_application.schemas.loan import LoanCreate
 from loan_application.services.customer_service import get_customer
 
@@ -79,3 +80,19 @@ def list_customer_loans(
 ) -> list[Loan]:
     get_customer(db, customer_id)
     return loan_repository.list_for_customer(db, customer_id, status)
+
+
+def get_customer_summary(db: Session, customer_id: int) -> CustomerSummary:
+    customer = get_customer(db, customer_id)
+    loans = loan_repository.list_for_customer(db, customer_id, None)
+    approved_loans = [loan for loan in loans if loan.status == "APPROVED"]
+
+    return CustomerSummary(
+        customer_id=customer.id,
+        name=customer.name,
+        total_loans=len(loans),
+        approved_loans=len(approved_loans),
+        rejected_loans=len(loans) - len(approved_loans),
+        total_approved_amount=sum(loan.amount for loan in approved_loans),
+        total_monthly_emi=sum(loan.emi or 0 for loan in approved_loans),
+    )
