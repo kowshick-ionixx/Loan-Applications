@@ -16,7 +16,7 @@ def count_approved_for_customer(db: Session, customer_id: int) -> int:
     stmt = select(func.count()).where(
         Loan.customer_id == customer_id, Loan.status == "APPROVED"
     )
-    return db.scalar(stmt)
+    return db.execute(stmt).scalar_one()
 
 
 def list_for_customer(db: Session, customer_id: int, status: str | None) -> list[Loan]:

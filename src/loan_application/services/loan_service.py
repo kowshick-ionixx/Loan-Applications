@@ -1,5 +1,5 @@
 import logging
-from datetime import date
+from datetime import date, datetime
 from decimal import ROUND_HALF_UP, Decimal
 
 from sqlalchemy.orm import Session
@@ -47,7 +47,7 @@ def check_eligibility(
 
 def apply_for_loan(db: Session, data: LoanCreate) -> Loan:
     customer = get_customer(db, data.customer_id)
-    today = date.today()
+    today = datetime.now().astimezone().date()
     approved_count = loan_repository.count_approved_for_customer(db, customer.id)
     reason = check_eligibility(customer, data.amount, approved_count, today)
     rate = INTEREST_RATES[data.tenure_months]
