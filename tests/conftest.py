@@ -17,7 +17,6 @@ TODAY = date(2026, 10, 8)
 def today() -> date:
     return TODAY
 
-
 @pytest.fixture
 def make_customer():
     def _make(age: int = 30, income: str = "50000") -> Customer:
