@@ -1,27 +1,47 @@
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from loan_application.customer import InvalidInputError, NotFoundError
-from loan_application.customer import router as customer_router
-from loan_application.exceptions import InvalidInputError, NotFoundError
-from loan_application.loan import router as loan_router
+from loan_application.db import get_db
+from loan_application.exceptions import NotFoundError, InvalidInputError, ConflictError
+from loan_application.routers.customer_routers import router as customers_router
+from loan_application.routers.loan_routers import router as loans_router   #replace the first one so changed name
 
 app = FastAPI(title="Loan Application Service")
-app.include_router(loan_router)
-app.include_router(customer_router) 
+app.include_router(loans_router)
+app.include_router(customers_router)
+
+@app.get("/health", tags=["Health"])
+def health(db: Session = Depends(get_db)):
+    try:
+        db.execute(text("SELECT 1"))
+        return {"status": "ok", "database": "connected"}
+    except Exception:
+        raise HTTPException(status_code=503, detail="database unavailable")
 
 
 @app.exception_handler(RequestValidationError)
 async def invalid_input_handler(request: Request, exc: RequestValidationError):
-    for e in exc.errors():
-        if e["type"] == "json_invalid" or tuple(e["loc"]) == ("body",):
-            return JSONResponse(status_code=400, content={"error": "INVALID_REQUEST"})
+    details = []
+    for err in exc.errors():                      # one entry per failing field
+        field = ".".join(str(p) for p in err["loc"][1:]) or "body"
+        details.append({
+            "field": field,
+            "message": err["msg"].removeprefix("Value error, "),
+        })
+
     return JSONResponse(
         status_code=400,
-        content={"error": "VALIDATION_FAILED", "message": "Invalid input"},
+        content={
+            "error": "VALIDATION_FAILED",
+            "message": "Invalid input",
+            "details": details,
+        },
     )
-
 
 @app.exception_handler(InvalidInputError)
 async def invalid_input_error_handler(request: Request, exc: InvalidInputError):
@@ -38,8 +58,29 @@ async def not_found_handler(request: Request, exc: NotFoundError):
         content={"error": "NOT_FOUND", "message": exc.message},
     )
 
+@app.exception_handler(ConflictError)
+async def conflict_handler(request: Request, exc: ConflictError):
+    return JSONResponse(
+        status_code=409,
+        content={"error": "CONFLICT", "message": exc.message},
+    )
+HTTP_CODES = {404: "NOT_FOUND", 405: "METHOD_NOT_ALLOWED", 503: "SERVICE_UNAVAILABLE"}
+
+@app.exception_handler(StarletteHTTPException)
+async def http_error_handler(request: Request, exc: StarletteHTTPException):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"error": HTTP_CODES.get(exc.status_code, "HTTP_ERROR"), "message": exc.detail},
+    )   
+
+@app.exception_handler(IntegrityError)
+async def database_error_handler(request: Request, exc: IntegrityError):
+    return JSONResponse(
+        status_code=409,
+        content={"error": "CONFLICT", "message": "This record already exists or is linked to other data"},
+    )
 
 @app.exception_handler(Exception)
 async def unexpected_error_handler(request: Request, exc: Exception):
     print("UNEXPECTED ERROR:", repr(exc))   
-    return JSONResponse(status_code=500, content={"error": "INTERNAL_ERROR"})
+    return JSONResponse(status_code=500, content={"error": "INTERNAL_ERROR","message": "An unexpected error occurred. Please try again later."})

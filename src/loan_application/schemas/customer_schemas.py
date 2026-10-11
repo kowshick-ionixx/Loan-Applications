@@ -1,14 +1,17 @@
+import random
 from datetime import date
 from decimal import Decimal
-from pydantic import BaseModel, Field, ConfigDict,field_validator,EmailStr
+
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 from typing import Literal
+
 
 class CustomerIn(BaseModel):
     name: str = Field(min_length=1, max_length=100)
-    email: EmailStr  #make it lowercase
-    phone: str
-    date_of_birth: date
-    monthly_income: Decimal
+    email: str
+    phone: str = Field(default_factory=lambda: str(random.randint(1000000000, 9999999999)))
+    date_of_birth: date = Field(default_factory=lambda: date(1990, 1, 1))
+    monthly_income: Decimal = Decimal("50000.00")
 
     @field_validator("name")
     @classmethod
@@ -16,10 +19,10 @@ class CustomerIn(BaseModel):
         value = value.strip()
         if not value:
             raise ValueError("Name cannot be empty")
-        if len(value)<3:
+        if len(value) < 3:
             raise ValueError("Name must be at least 3 characters long")
         return value
-    
+
     @field_validator("phone")
     @classmethod
     def phone_must_be_10digits(cls, value: str) -> str:
@@ -44,32 +47,23 @@ class CustomerIn(BaseModel):
     @field_validator("email")
     @classmethod
     def normalize_email(cls, value: str) -> str:
-        return value.strip().lower() 
-
-    
+        return value.strip().lower()
 
 
 class CustomerOut(CustomerIn):
     id: int
     model_config = ConfigDict(from_attributes=True)
 
-
-
-class LoanApplyIn(BaseModel):
-    customer_id: int = Field(gt=0)
-    amount: Decimal = Field(ge=10_000, le=5_000_000, decimal_places=2)
-    tenure_months: Literal[12, 24, 36, 48, 60]
-
-
-class LoanOut(BaseModel):
-    id: int
+class CustomerSummaryOut(BaseModel):
     customer_id: int
-    amount: Decimal
-    tenure_months: int
-    interest_rate: Decimal | None
-    emi: Decimal | None
-    status: str
-    rejection_reason: str | None
-    applied_on: date
+    customer_name: str
+    total_applications: int
+    approved_count: int
+    rejected_count: int
+    total_approved_amount: float
+    total_monthly_emi: float
+    emi_to_income_ratio: float
+    risk_band: Literal["LOW", "MEDIUM", "HIGH"]
 
-    model_config = {"from_attributes": True}
+class MessageOut(BaseModel):
+    message: str    

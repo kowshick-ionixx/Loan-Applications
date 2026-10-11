@@ -2,7 +2,7 @@ from datetime import date
 from decimal import Decimal
 
 from sqlalchemy import ForeignKey, Numeric, String, func,CheckConstraint,Integer,Date
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column,validates
 
 
 class Base(DeclarativeBase):
@@ -19,11 +19,16 @@ class Customer(Base):
     date_of_birth: Mapped[date]=mapped_column(Date, nullable=False)
     monthly_income: Mapped[Decimal] = mapped_column(Numeric(12, 2),nullable=False)
 
+    @validates("date_of_birth")
+    def validate_date_of_birth(self, key, value):
+        if value >= date.today():
+            raise ValueError("Date of birth must be in the past")
+        return value
+
     __table_args__ =(
-        CheckConstraint("char_length(phone) = 10", name="check_customer_phone_length"),
-        CheckConstraint("char_length(name)>=3 AND char_length(name)<=50", name="check_customer_name_length"),
-        CheckConstraint("name ~ '^[A-Za-z ]+$'", name="check_customer_name_letters"),
-        CheckConstraint("date_of_birth < current_date",name="check_customer_date_of_birth"),
+        CheckConstraint("length(phone) = 10", name="check_customer_phone_length"),
+        CheckConstraint("length(name)>=3 AND length(name)<=50", name="check_customer_name_length"),
+        CheckConstraint("name NOT GLOB '*[^A-Za-z ]*'",name="check_customer_name_letters"),
         CheckConstraint("monthly_income >0",name="check_monthly_income"),
 
 
