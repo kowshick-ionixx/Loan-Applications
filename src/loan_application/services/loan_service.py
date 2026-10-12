@@ -93,6 +93,6 @@ def get_customer_summary(db: Session, customer_id: int) -> CustomerSummary:
         total_loans=len(loans),
         approved_loans=len(approved_loans),
         rejected_loans=len(loans) - len(approved_loans),
-        total_approved_amount=sum(loan.amount for loan in approved_loans),
-        total_monthly_emi=sum(loan.emi or 0 for loan in approved_loans),
+        total_approved_amount=float(sum(loan.amount for loan in approved_loans)),
+        total_monthly_emi=float(sum(loan.emi or 0 for loan in approved_loans)),
     )

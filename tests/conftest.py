@@ -2,11 +2,13 @@ from datetime import date
 from decimal import Decimal
 
 import pytest
+from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session
 
-from loan_application.db import DATABASE_URL, Base
+from loan_application.db import DATABASE_URL, Base, get_db
+from loan_application.main import app
 from loan_application.models import Customer
 
 TEST_DB_NAME = "test_app_db"
@@ -16,6 +18,7 @@ TODAY = date(2026, 10, 8)
 @pytest.fixture
 def today() -> date:
     return TODAY
+
 
 @pytest.fixture
 def make_customer():
@@ -57,8 +60,16 @@ def test_engine():
 def db(test_engine):
     connection = test_engine.connect()
     transaction = connection.begin()
-    session = Session(bind=connection)
+    session = Session(bind=connection, join_transaction_mode="create_savepoint")
     yield session
     session.close()
     transaction.rollback()
     connection.close()
+
+
+@pytest.fixture
+def client(db):
+    app.dependency_overrides[get_db] = lambda: db
+    with TestClient(app) as test_client:
+        yield test_client
+    app.dependency_overrides.clear()

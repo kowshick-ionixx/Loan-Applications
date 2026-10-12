@@ -36,21 +36,22 @@ def error_response(status_code: int, content: dict, headers=None) -> JSONRespons
     return JSONResponse(status_code=status_code, content=content, headers=headers)
 
 
-async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
+async def app_error_handler(request: Request, exc: Exception) -> JSONResponse:
+    assert isinstance(exc, AppError)
     logger.warning("%s: %s", exc.error, exc.message)
     return error_response(exc.status_code, {"error": exc.error, "message": exc.message})
 
 
-async def http_error_handler(request: Request, exc: HTTPException) -> JSONResponse:
+async def http_error_handler(request: Request, exc: Exception) -> JSONResponse:
+    assert isinstance(exc, HTTPException)
     error = HTTPStatus(exc.status_code).name
     logger.warning("%s: %s %s", error, request.method, request.url.path)
     content = {"error": error, "message": exc.detail}
     return error_response(exc.status_code, content, exc.headers)
 
 
-async def validation_error_handler(
-    request: Request, exc: RequestValidationError
-) -> JSONResponse:
+async def validation_error_handler(request: Request, exc: Exception) -> JSONResponse:
+    assert isinstance(exc, RequestValidationError)
     errors = exc.errors()
     if any(e["type"] == "json_invalid" or tuple(e["loc"]) == ("body",) for e in errors):
         logger.warning("Invalid request body")
