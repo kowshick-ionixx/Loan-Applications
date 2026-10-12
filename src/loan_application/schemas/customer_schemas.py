@@ -1,15 +1,17 @@
 import random
 from datetime import date
 from decimal import Decimal
-
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class CustomerIn(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     email: str
-    phone: str = Field(default_factory=lambda: str(random.randint(1000000000, 9999999999)))
+    phone: str = Field(
+        default_factory=lambda: str(random.randint(1000000000, 9999999999))
+    )
     date_of_birth: date = Field(default_factory=lambda: date(1990, 1, 1))
     monthly_income: Decimal = Decimal("50000.00")
 
@@ -54,6 +56,7 @@ class CustomerOut(CustomerIn):
     id: int
     model_config = ConfigDict(from_attributes=True)
 
+
 class CustomerSummaryOut(BaseModel):
     customer_id: int
     customer_name: str
@@ -65,5 +68,6 @@ class CustomerSummaryOut(BaseModel):
     emi_to_income_ratio: float
     risk_band: Literal["LOW", "MEDIUM", "HIGH"]
 
+
 class MessageOut(BaseModel):
-    message: str    
+    message: str

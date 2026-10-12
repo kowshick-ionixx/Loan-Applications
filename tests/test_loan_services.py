@@ -3,10 +3,14 @@ from decimal import Decimal
 
 import pytest
 
-from loan_application.exceptions import CustomerNotFound, NotFoundError ,InvalidInputError
+from loan_application.exceptions import (
+    CustomerNotFound,
+    InvalidInputError,
+    NotFoundError,
+)
+from loan_application.schemas.customer_schemas import CustomerIn
 from loan_application.schemas.loan_schemas import LoanApplyIn
 from loan_application.services import customer_services, loan_services
-from loan_application.schemas.customer_schemas import CustomerIn
 
 
 def make_customer_data(
@@ -42,8 +46,8 @@ def create_customer(db_session):
 
 def test_calculate_emi():
     emi = loan_services.calculate_emi(
-        Decimal("300000"),
-        Decimal("12"),
+        Decimal(300000),
+        Decimal(12),
         36,
     )
 
@@ -95,7 +99,7 @@ def test_reject_loan_for_income(db_session):
             name="Low Income",
             email="lowincome@example.com",
             phone="8720830081",
-            income=Decimal("10000"),
+            income=Decimal(10000),
         ),
     )
 
@@ -105,9 +109,7 @@ def test_reject_loan_for_income(db_session):
     )
 
     assert loan.status == "REJECTED"
-    assert loan.rejection_reason == (
-        "Requested amount exceeds 20x monthly income"
-    )
+    assert loan.rejection_reason == ("Requested amount exceeds 20x monthly income")
 
 
 def test_apply_loan_customer_not_found(db_session):

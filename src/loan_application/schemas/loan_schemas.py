@@ -40,5 +40,6 @@ class LoanSummaryOut(BaseModel):
     emi_to_income_ratio: Decimal
     risk_band: Literal["LOW", "MEDIUM", "HIGH"]
 
+
 class messageOut(BaseModel):
     message: str

@@ -39,6 +39,7 @@ def create_customer(db: Session, data: CustomerIn) -> Customer:
 
     return customer
 
+
 def update_customer(db: Session, customer_id: int, data: CustomerIn) -> Customer:
     customer = get_customer(db, customer_id)
 

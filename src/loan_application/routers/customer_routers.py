@@ -1,13 +1,14 @@
-from loan_application.schemas.customer_schemas import CustomerIn, CustomerOut, CustomerSummaryOut
-from loan_application.services import customer_services, loan_services
-
-
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from loan_application.db import get_db
-from loan_application.schemas.customer_schemas import CustomerIn, CustomerOut, CustomerSummaryOut, MessageOut
-from loan_application.services import customer_services
+from loan_application.schemas.customer_schemas import (
+    CustomerIn,
+    CustomerOut,
+    CustomerSummaryOut,
+    MessageOut,
+)
+from loan_application.services import customer_services, loan_services
 
 router = APIRouter(prefix="/customers", tags=["Customers"])
 
@@ -31,6 +32,7 @@ def update_customer(customer_id: int, data: CustomerIn, db: Session = Depends(ge
 def delete_customer(customer_id: int, db: Session = Depends(get_db)):
     customer_services.delete_customer(db, customer_id)
     return {"message": "Customer deleted successfully"}
+
 
 @router.get("/{customer_id}/summary", response_model=CustomerSummaryOut)
 def customer_summary(customer_id: int, db: Session = Depends(get_db)):
