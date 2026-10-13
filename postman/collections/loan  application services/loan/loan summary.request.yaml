@@ -1,0 +1,4 @@
+$kind: http-request
+url: http://127.0.0.1:8000/customers/23/summary
+method: GET
+order: 4000

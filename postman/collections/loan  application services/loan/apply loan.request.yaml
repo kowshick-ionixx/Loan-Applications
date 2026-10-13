@@ -1,0 +1,15 @@
+$kind: http-request
+url: http://127.0.0.1:8000/loans/apply
+method: POST
+body:
+  type: json
+  content: "{\r
+
+    \  \"customer_id\": 23,\r
+
+    \  \"amount\": 10000,\r
+
+    \  \"tenure_months\": 12\r
+
+    }"
+order: 1000

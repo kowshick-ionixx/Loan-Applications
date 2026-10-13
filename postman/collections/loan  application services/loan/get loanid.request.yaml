@@ -1,0 +1,7 @@
+$kind: http-request
+url: http://127.0.0.1:8000/loans/4
+method: GET
+body:
+  type: json
+  content: ""
+order: 2000

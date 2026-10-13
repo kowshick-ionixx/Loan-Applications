@@ -5,6 +5,8 @@ from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from loan_application.routers import auth_routers
+
 
 from loan_application.db import get_db
 from loan_application.exceptions import ConflictError, InvalidInputError, NotFoundError
@@ -16,6 +18,7 @@ from loan_application.routers.loan_routers import (
 app = FastAPI(title="Loan Application Service")
 app.include_router(loans_router)
 app.include_router(customers_router)
+app.include_router(auth_routers.router)
 
 
 @app.get("/health", tags=["Health"])
@@ -73,7 +76,7 @@ async def conflict_handler(request: Request, exc: ConflictError):
     )
 
 
-HTTP_CODES = {404: "NOT_FOUND", 405: "METHOD_NOT_ALLOWED", 503: "SERVICE_UNAVAILABLE"}
+HTTP_CODES = { 401: "UNAUTHORIZED",403: "FORBIDDEN",404: "NOT_FOUND", 405: "METHOD_NOT_ALLOWED", 503: "SERVICE_UNAVAILABLE"}
 
 
 @app.exception_handler(StarletteHTTPException)
@@ -84,6 +87,7 @@ async def http_error_handler(request: Request, exc: StarletteHTTPException):
             "error": HTTP_CODES.get(exc.status_code, "HTTP_ERROR"),
             "message": exc.detail,
         },
+        headers=exc.headers,
     )
 
 
@@ -108,3 +112,4 @@ async def unexpected_error_handler(request: Request, exc: Exception):
             "message": "An unexpected error occurred. Please try again later.",
         },
     )
+

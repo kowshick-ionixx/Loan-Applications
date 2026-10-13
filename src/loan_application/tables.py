@@ -1,8 +1,10 @@
 from datetime import date
 from decimal import Decimal
-
-from sqlalchemy import CheckConstraint, Date, ForeignKey, Integer, Numeric, String, func
+import enum
+from sqlalchemy import CheckConstraint, Date, ForeignKey, Integer, Numeric, String, func,Enum
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, validates
+
+
 
 
 class Base(DeclarativeBase):
@@ -59,3 +61,21 @@ class Loan(Base):
             name="check_rejection_reason",
         ),
     )
+
+
+class UserRole(str, enum.Enum):
+    OFFICER = "OFFICER"
+    CUSTOMER = "CUSTOMER"
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    username: Mapped[str] = mapped_column(String(50), unique=True, index=True)
+    password_hash: Mapped[str] = mapped_column(String(255))
+    role: Mapped[UserRole] = mapped_column(Enum(UserRole, name="user_role"))
+    customer_id: Mapped[int | None] = mapped_column(
+        ForeignKey("customers.id"), unique=True, nullable=True
+    )
+    is_active: Mapped[bool] = mapped_column(default=True)

@@ -1,5 +1,5 @@
 $kind: http-request
-name: New Request
+name: post customer
 url: http://127.0.0.1:8000/customers
 method: POST
 body:

@@ -1,5 +1,4 @@
 $kind: http-request
-name: New Request
 url: http://127.0.0.1:8000/customers/19
 method: PUT
 body:

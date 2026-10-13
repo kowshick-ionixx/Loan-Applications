@@ -1,7 +1,8 @@
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
-
 from loan_application.tables import Loan
+
+
 
 
 def count_approved_for_customer(db: Session, customer_id: int) -> int:
@@ -61,3 +62,13 @@ def count_approved_for_customer(
 
 def delete(db: Session, loan: Loan) -> None:
     db.delete(loan)
+
+
+
+
+def list_by_customer(db: Session, customer_id: int, status: str | None = None) -> list[Loan]:
+    stmt = select(Loan).where(Loan.customer_id == customer_id)
+    if status is not None:
+        stmt = stmt.where(Loan.status == status)
+    stmt = stmt.order_by(Loan.applied_on.desc(), Loan.id.desc())
+    return list(db.scalars(stmt))

@@ -1,5 +1,4 @@
 $kind: http-request
-name: New Request
 url: http://127.0.0.1:8000/customers
 method: POST
 body:
@@ -17,4 +16,4 @@ body:
     \  \"monthly_income\": 50000\r
 
     }"
-order: 4000
+order: 288

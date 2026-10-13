@@ -11,6 +11,8 @@ from loan_application.exceptions import (
 from loan_application.repositories import customer_repositories, loan_repositories
 from loan_application.schemas.loan_schemas import LoanApplyIn
 from loan_application.tables import Customer, Loan
+VALID_STATUSES = {"APPROVED", "REJECTED"}
+from loan_application.services import customer_services
 
 INTEREST_RATES = {
     12: Decimal(10),
@@ -80,9 +82,11 @@ def apply_for_loan(db: Session, data: LoanApplyIn) -> Loan:
 
 
 def get_loan(db: Session, loan_id: int) -> Loan:
+    if loan_id <= 0: 
+        raise InvalidInputError("id must be a positive integer")
     loan = loan_repositories.get_by_id(db, loan_id)
     if loan is None:
-        raise NotFoundError("Loan not found")
+        raise NotFoundError(f"Loan {loan_id} not found")
     return loan
 
 
@@ -195,3 +199,15 @@ def list_loans_for_customer(
         customer_id,
         status,
     )
+
+
+
+
+
+
+def list_customer_loans(db: Session, customer_id: int, status: str | None = None):
+    if status is not None and status not in VALID_STATUSES:
+        raise InvalidInputError("status must be APPROVED or REJECTED")
+
+    customer_services.get_customer(db, customer_id)  # raises 400 or 404
+    return loan_repositories.list_by_customer(db, customer_id, status)
