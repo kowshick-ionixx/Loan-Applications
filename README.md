@@ -22,7 +22,8 @@ This guide explains everything done in this project, in the order it was built, 
 14. [Code quality with Ruff](#part-14-code-quality-with-ruff)
 15. [Git and GitHub](#part-15-git-and-github)
 16. [README](#part-16-readme)
-17. [Daily cheat sheet](#daily-cheat-sheet)
+17. [Week 2 Monday - Login with JWT](#part-17-week-2-monday---login-with-jwt)
+18. [Daily cheat sheet](#daily-cheat-sheet)
 
 ---
 
@@ -260,7 +261,13 @@ Stop the server with **Ctrl + C**.
 
 ## Part 11: Test in Postman
 
-Set the body to **raw → JSON**. Test in this order:
+The full end-to-end run is in `postman/loan-application.postman_collection.json` (57 requests: every Round 2 checklist case plus register, login, profile and ownership). The login requests store the token in a collection variable. Start the app, then run it from the terminal (or import it into Postman and set `officerPassword`):
+
+```powershell
+postman collection run postman/loan-application.postman_collection.json --env-var officerPassword=<password>
+```
+
+Set the body to **raw → JSON**. Since Week 2, first log in as an officer (`POST /auth/login`, see Part 17) and set **Authorization → Bearer Token** on the collection. Test in this order:
 
 | # | Request | Expected |
 |---|---|---|
@@ -290,31 +297,33 @@ Set the body to **raw → JSON**. Test in this order:
 
 ## Part 13: Unit tests
 
-Created a `tests/` folder at the project root:
-
-| File | What it contains |
+| File | What it covers |
 |---|---|
-| `conftest.py` | Fixtures (`today`, `make_customer`) and a fresh `test_app_db` database that is created and dropped on every run |
-| `test_loan_rules.py` | 18 tests for EMI, every eligibility rule, boundary values and rule order |
+| `tests/test_loan_rules.py` | Unit tests: EMI per tenure, every eligibility rule at its boundaries, rule order, risk bands |
+| `tests/test_api.py` | All six Round 2 APIs and the 18-scenario self-test checklist |
+| `tests/test_auth.py` | Register, login, tokens, profile required, ownership |
+| `tests/test_flow.py` | One end-to-end customer journey through the API |
+| `tests/test_seed.py` | The seed script |
 
-Commands:
+All of them run against `app_db_test`, never `app_db` (see Part 17). Coverage: `uv run pytest --cov=loan_application`.
 
 ```powershell
 uv run pytest -v                      # run all tests
-uv run pytest -v -k "age"             # run only tests with "age" in the name
-uv run pytest -v -k "not database"    # skip the database test
+uv run pytest -v -k "loan"            # run only tests with "loan" in the name
 ```
 
-> PostgreSQL must be running (`docker compose up -d`) for the database test.
+> PostgreSQL must be running (`docker compose up -d`).
 
 ---
 
-## Part 14: Code quality with Ruff
+## Part 14: Code quality with Ruff, black and pre-commit
 
 ```powershell
 uv run ruff check .          # find problems
 uv run ruff check . --fix    # fix what it can automatically
-uv run ruff format .         # format the code
+uv run black .               # format the code
+uv run pre-commit install    # once: run ruff + black on every git commit
+uv run pre-commit run --all-files
 ```
 
 ---
@@ -363,6 +372,75 @@ Added `README.md` with:
 - Error codes
 - How to run the tests
 - Week 1 summary
+
+---
+
+## Part 17: Week 2 Monday - Authentication and roles
+
+New packages: `pwdlib[argon2]` (password hashing), `pyjwt` (tokens), `pydantic-settings` (reads `.env`), `python-multipart` (login form).
+
+### Setup
+
+1. Copy `.env.example` to `.env` and fill in the placeholders. No secret lives in the code; everything comes from `.env` (git-ignored):
+
+   | Variable | Used for |
+   |---|---|
+   | `POSTGRES_PASSWORD`, `DATABASE_URL` | Docker and the app's database |
+   | `JWT_SECRET_KEY` | Signs tokens, at least 32 characters (`python -c "import secrets; print(secrets.token_hex(32))"`) |
+   | `JWT_ALGORITHM`, `ACCESS_TOKEN_EXPIRE_MINUTES` | `HS256`, `30` |
+   | `SEED_OFFICER_PASSWORD` | Password for the first officer (if empty, the seed script asks for it) |
+
+2. Create the tables and the first officer (`officer1`):
+
+   ```powershell
+   uv run alembic upgrade head
+   uv run python -m loan_application.scripts.seed
+   ```
+
+### The flow: register → login → create profile → use the APIs
+
+1. `POST /auth/register` with JSON `{"username": "meena", "password": "Secret@123"}` creates a CUSTOMER account with no profile (a `role` in the body is ignored). Usernames are stored in lowercase.
+2. `POST /auth/login` with a **form body** (`x-www-form-urlencoded`, the OAuth2 standard; this is the only endpoint that does not take JSON): `username=meena&password=Secret@123` → `{"access_token": "...", "token_type": "bearer", "expires_in": 1800}`.
+3. Send `Authorization: Bearer <access_token>` on every other request. In Swagger, click **Authorize** and log in there.
+4. `POST /api/customers` with the Round 2 customer body creates the profile **and links it to your account** in one transaction. Until then every customer/loan API returns `403 CUSTOMER_PROFILE_REQUIRED`.
+5. Officers are created only by the seed script. `create_customer_user(username, password, customer_id=None)` in `scripts/seed.py` can also make a customer login from the terminal.
+
+### Who can do what
+
+| Endpoint | No token | CUSTOMER no profile | CUSTOMER with profile | OFFICER |
+|---|---|---|---|---|
+| `POST /auth/login`, `POST /auth/register`, `GET /health` | public | public | public | public |
+| `POST /api/customers` | 401 | 201 + linked | 409 `PROFILE_ALREADY_EXISTS` | 201 (not linked) |
+| `GET /api/customers/{id}` | 401 | 403 | own 200, other 403 | 200 |
+| `GET /api/customers/{id}/summary`, `/loans` | 401 | 403 | own only | 200 |
+| `POST /api/loans` | 401 | 403 | own `customer_id` only | 201 |
+| `GET /api/loans/{id}` | 401 | 403 | own loan only | 200 |
+
+- `401 UNAUTHORIZED` (with header `WWW-Authenticate: Bearer`): no token, bad or expired token, unknown or inactive user. Wrong login details give `401 INVALID_CREDENTIALS`, the same for a wrong username or a wrong password.
+- `403 FORBIDDEN`: wrong role, or another customer's data. A customer gets 403 even for ids that do not exist, so they cannot probe which ids exist; an officer gets 404.
+- Every log line carries the request id and the user id (`user_id=-` when not logged in), e.g. `2026-10-13 21:30:01 | INFO    | 678a9a43... | user_id=55 | GET /api/customers/7 -> 200 (4.2 ms)`; the status code is coloured in a terminal. Passwords and tokens are never logged.
+
+### How a request is checked
+
+`token` → `get_current_user` (decodes the JWT, loads the user from the database, puts `user_id` in the log context) → `require_customer_profile` → the service's `check_owner` (a CUSTOMER only reaches their own `customer_id`) → repository.
+
+| File | Job |
+|---|---|
+| `config.py` | Settings from `.env` |
+| `security.py` | Argon2 hash/verify, create/decode JWTs |
+| `dependencies.py` | `get_current_user`, `require_customer_profile` |
+| `services/auth_service.py` | Register, check credentials, issue token |
+| `services/customer_service.py` | Profile creation and linking, `check_owner` |
+| `routers/auth.py` | `POST /auth/register`, `POST /auth/login` |
+| `scripts/seed.py` | Create or reset the officer; `create_customer_user(username, password, customer_id=None)` |
+| `alembic/versions/c4e8f2a19d07_...py` | Deleting a customer sets the user's `customer_id` to NULL |
+| `tests/test_auth.py` | Register, login, tokens, profile and ownership tests |
+
+### Tests use their own database
+
+`pytest` always runs against `app_db_test`: `tests/conftest.py` switches the URL before the engine is created, rebuilds the schema with the Alembic migrations, rolls every test back, and aborts if the database name does not end in `_test`. Your `app_db` is never touched.
+
+The Postman collection needs the officer password passed in: `--env-var officerPassword=<password>`.
 
 ---
 

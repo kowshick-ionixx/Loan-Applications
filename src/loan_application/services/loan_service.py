@@ -5,13 +5,24 @@ from decimal import ROUND_HALF_UP, Decimal
 from sqlalchemy.orm import Session
 
 from loan_application.exceptions import AppError
-from loan_application.models import Customer, Loan
+from loan_application.models import APPROVED, REJECTED, Customer, Loan, User
 from loan_application.repositories import loan_repository
-from loan_application.schemas.customer import CustomerSummary
+from loan_application.schemas.customer import CustomerSummary, RiskBand
 from loan_application.schemas.loan import LoanCreate
-from loan_application.services.customer_service import get_customer
+from loan_application.services.customer_service import (
+    check_owner,
+    get_customer_for_user,
+)
 
 logger = logging.getLogger(__name__)
+
+MIN_AGE = 21
+MAX_AGE = 60
+MAX_INCOME_MULTIPLE = 20
+MAX_ACTIVE_LOANS = 2
+LOW_RISK_BELOW = 30
+HIGH_RISK_ABOVE = 50
+CENTS = Decimal("0.01")
 
 INTEREST_RATES = {
     12: Decimal(10),
@@ -30,23 +41,31 @@ def calculate_emi(amount: Decimal, annual_rate: Decimal, months: int) -> Decimal
     r = annual_rate / 12 / 100
     factor = (1 + r) ** months
     emi = amount * r * factor / (factor - 1)
-    return emi.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    return emi.quantize(CENTS, rounding=ROUND_HALF_UP)
 
 
 def check_eligibility(
     customer: Customer, amount: Decimal, approved_count: int, today: date
 ) -> str | None:
-    if not 21 <= calculate_age(customer.date_of_birth, today) <= 60:
+    if not MIN_AGE <= calculate_age(customer.date_of_birth, today) <= MAX_AGE:
         return "Age must be between 21 and 60"
-    if amount > 20 * customer.monthly_income:
+    if amount > MAX_INCOME_MULTIPLE * customer.monthly_income:
         return "Requested amount exceeds 20x monthly income"
-    if approved_count >= 2:
+    if approved_count >= MAX_ACTIVE_LOANS:
         return "Customer already has 2 active loans"
     return None
 
 
-def apply_for_loan(db: Session, data: LoanCreate) -> Loan:
-    customer = get_customer(db, data.customer_id)
+def get_risk_band(emi_to_income_ratio: Decimal) -> RiskBand:
+    if emi_to_income_ratio < LOW_RISK_BELOW:
+        return "LOW"
+    if emi_to_income_ratio <= HIGH_RISK_ABOVE:
+        return "MEDIUM"
+    return "HIGH"
+
+
+def apply_for_loan(db: Session, data: LoanCreate, user: User) -> Loan:
+    customer = get_customer_for_user(db, data.customer_id, user)
     today = datetime.now().astimezone().date()
     approved_count = loan_repository.count_approved_for_customer(db, customer.id)
     reason = check_eligibility(customer, data.amount, approved_count, today)
@@ -58,7 +77,7 @@ def apply_for_loan(db: Session, data: LoanCreate) -> Loan:
         tenure_months=data.tenure_months,
         interest_rate=rate,
         emi=None if reason else calculate_emi(data.amount, rate, data.tenure_months),
-        status="REJECTED" if reason else "APPROVED",
+        status=REJECTED if reason else APPROVED,
         rejection_reason=reason,
         applied_on=today,
     )
@@ -68,31 +87,39 @@ def apply_for_loan(db: Session, data: LoanCreate) -> Loan:
     return loan
 
 
-def get_loan(db: Session, loan_id: int) -> Loan:
+def get_loan(db: Session, loan_id: int, user: User) -> Loan:
     loan = loan_repository.get_by_id(db, loan_id)
+    check_owner(user, loan.customer_id if loan else None)
     if loan is None:
         raise AppError(404, "NOT_FOUND", f"Loan with id {loan_id} not found")
     return loan
 
 
 def list_customer_loans(
-    db: Session, customer_id: int, status: str | None
+    db: Session, customer_id: int, status: str | None, user: User
 ) -> list[Loan]:
-    get_customer(db, customer_id)
+    get_customer_for_user(db, customer_id, user)
     return loan_repository.list_for_customer(db, customer_id, status)
 
 
-def get_customer_summary(db: Session, customer_id: int) -> CustomerSummary:
-    customer = get_customer(db, customer_id)
+def get_customer_summary(db: Session, customer_id: int, user: User) -> CustomerSummary:
+    customer = get_customer_for_user(db, customer_id, user)
     loans = loan_repository.list_for_customer(db, customer_id, None)
-    approved_loans = [loan for loan in loans if loan.status == "APPROVED"]
+    approved_loans = [loan for loan in loans if loan.status == APPROVED]
+
+    total_emi = sum((loan.emi or Decimal(0) for loan in approved_loans), Decimal(0))
+    ratio = (total_emi / customer.monthly_income * 100).quantize(
+        CENTS, rounding=ROUND_HALF_UP
+    )
 
     return CustomerSummary(
         customer_id=customer.id,
-        name=customer.name,
-        total_loans=len(loans),
-        approved_loans=len(approved_loans),
-        rejected_loans=len(loans) - len(approved_loans),
+        customer_name=customer.name,
+        total_applications=len(loans),
+        approved_count=len(approved_loans),
+        rejected_count=len(loans) - len(approved_loans),
         total_approved_amount=float(sum(loan.amount for loan in approved_loans)),
-        total_monthly_emi=float(sum(loan.emi or 0 for loan in approved_loans)),
+        total_monthly_emi=float(total_emi),
+        emi_to_income_ratio=float(ratio),
+        risk_band=get_risk_band(ratio),
     )

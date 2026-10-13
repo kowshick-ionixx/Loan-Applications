@@ -1,0 +1,1708 @@
+{
+  "info": {
+    "name": "Loan Application Service",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8000"
+    },
+    {
+      "key": "officerPassword",
+      "value": ""
+    },
+    {
+      "key": "badToken",
+      "value": "not-a-real-jwt"
+    }
+  ],
+  "item": [
+    {
+      "name": "1 Auth",
+      "item": [
+        {
+          "name": "Health",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/health",
+            "header": []
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"status 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "const ts = Date.now();",
+                  "pm.collectionVariables.set(\"ts\", ts);",
+                  "const d = new Date(); d.setFullYear(d.getFullYear() - 19);",
+                  "pm.collectionVariables.set(\"dob19\", d.toISOString().slice(0, 10));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login officer (stores officerToken)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/auth/login",
+            "header": [],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "username",
+                  "value": "officer1"
+                },
+                {
+                  "key": "password",
+                  "value": "{{officerPassword}}"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"status 200\", () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set(\"officerToken\", pm.response.json().access_token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login wrong password -> 401",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/auth/login",
+            "header": [],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "username",
+                  "value": "officer1"
+                },
+                {
+                  "key": "password",
+                  "value": "Wrong@123"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"status 401\", () => pm.response.to.have.status(401));",
+                  "pm.test(\"error INVALID_CREDENTIALS\", () => pm.expect(pm.response.json().error).to.eql(\"INVALID_CREDENTIALS\"));",
+                  "pm.test(\"has request_id\", () => pm.expect(pm.response.json().request_id).to.be.a(\"string\"));",
+                  "pm.test(\"WWW-Authenticate\", () => pm.response.to.have.header(\"WWW-Authenticate\", \"Bearer\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Register anitha -> 201",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/auth/register",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n \"username\": \"anitha_{{ts}}\",\n \"password\": \"Secret@123\",\n \"role\": \"OFFICER\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"status 201\", () => pm.response.to.have.status(201));",
+                  "const u = pm.response.json();",
+                  "pm.test(\"CUSTOMER without profile\", () => { pm.expect(u.role).to.eql(\"CUSTOMER\"); pm.expect(u.has_customer_profile).to.eql(false); });",
+                  "pm.test(\"password not returned\", () => pm.expect(pm.response.text()).not.to.include(\"Secret@123\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Register same username -> 409",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/auth/register",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n \"username\": \"ANITHA_{{ts}}\",\n \"password\": \"Secret@123\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"status 409\", () => pm.response.to.have.status(409));",
+                  "pm.test(\"error DUPLICATE_USERNAME\", () => pm.expect(pm.response.json().error).to.eql(\"DUPLICATE_USERNAME\"));",
+                  "pm.test(\"has request_id\", () => pm.expect(pm.response.json().request_id).to.be.a(\"string\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Register bad body -> 400 both fields",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/auth/register",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n \"username\": \"a!\",\n \"password\": \"short\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"error VALIDATION_FAILED\", () => pm.expect(pm.response.json().error).to.eql(\"VALIDATION_FAILED\"));",
+                  "pm.test(\"field username\", () => pm.expect(pm.response.json().details.map(d => d.field)).to.include(\"username\"));",
+                  "pm.test(\"field password\", () => pm.expect(pm.response.json().details.map(d => d.field)).to.include(\"password\"));",
+                  "pm.test(\"has request_id\", () => pm.expect(pm.response.json().request_id).to.be.a(\"string\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login anitha (stores customerToken)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/auth/login",
+            "header": [],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "username",
+                  "value": "anitha_{{ts}}"
+                },
+                {
+                  "key": "password",
+                  "value": "Secret@123"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"status 200\", () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set(\"customerToken\", pm.response.json().access_token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "No token -> 401",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/loans/1",
+            "header": []
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"status 401\", () => pm.response.to.have.status(401));",
+                  "pm.test(\"error UNAUTHORIZED\", () => pm.expect(pm.response.json().error).to.eql(\"UNAUTHORIZED\"));",
+                  "pm.test(\"has request_id\", () => pm.expect(pm.response.json().request_id).to.be.a(\"string\"));",
+                  "pm.test(\"WWW-Authenticate\", () => pm.response.to.have.header(\"WWW-Authenticate\", \"Bearer\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Bad token -> 401",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/loans/1",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{badToken}}"
+              }
+            ]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"status 401\", () => pm.response.to.have.status(401));",
+                  "pm.test(\"error UNAUTHORIZED\", () => pm.expect(pm.response.json().error).to.eql(\"UNAUTHORIZED\"));",
+                  "pm.test(\"has request_id\", () => pm.expect(pm.response.json().request_id).to.be.a(\"string\"));",
+                  "pm.test(\"WWW-Authenticate\", () => pm.response.to.have.header(\"WWW-Authenticate\", \"Bearer\"));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2 Customer profile",
+      "item": [
+        {
+          "name": "Apply before profile -> 403",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/loans",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customerToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n \"customer_id\": 1,\n \"amount\": 300000,\n \"tenure_months\": 36\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"status 403\", () => pm.response.to.have.status(403));",
+                  "pm.test(\"error CUSTOMER_PROFILE_REQUIRED\", () => pm.expect(pm.response.json().error).to.eql(\"CUSTOMER_PROFILE_REQUIRED\"));",
+                  "pm.test(\"has request_id\", () => pm.expect(pm.response.json().request_id).to.be.a(\"string\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create own profile -> 201",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/customers",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customerToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n \"name\": \"Anitha Selvam\",\n \"email\": \"anitha{{ts}}@example.com\",\n \"phone\": \"9876543210\",\n \"date_of_birth\": \"1995-04-15\",\n \"monthly_income\": 50000\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"status 201\", () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set(\"customerId\", pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create profile again -> 409",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/customers",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customerToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n \"name\": \"Anitha Selvam\",\n \"email\": \"anitha2{{ts}}@example.com\",\n \"phone\": \"9876543210\",\n \"date_of_birth\": \"1995-04-15\",\n \"monthly_income\": 50000\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"status 409\", () => pm.response.to.have.status(409));",
+                  "pm.test(\"error PROFILE_ALREADY_EXISTS\", () => pm.expect(pm.response.json().error).to.eql(\"PROFILE_ALREADY_EXISTS\"));",
+                  "pm.test(\"has request_id\", () => pm.expect(pm.response.json().request_id).to.be.a(\"string\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get own customer -> 200",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/customers/{{customerId}}",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customerToken}}"
+              }
+            ]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"status 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Apply own loan 300000/36 -> APPROVED",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/loans",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customerToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n \"customer_id\": {{customerId}},\n \"amount\": 300000,\n \"tenure_months\": 36\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"status 201\", () => pm.response.to.have.status(201));",
+                  "pm.test(\"APPROVED\", () => pm.expect(pm.response.json().status).to.eql(\"APPROVED\"));",
+                  "pm.test(\"EMI 9964.29\", () => pm.expect(pm.response.json().emi).to.eql(9964.29));",
+                  "pm.collectionVariables.set(\"customerLoan\", pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "3 Customers (Round 2 API 1-2)",
+      "item": [
+        {
+          "name": "Create customer -> 201",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/customers",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{officerToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n \"name\": \"Bala Murugan\",\n \"email\": \"bala{{ts}}@example.com\",\n \"phone\": \"9876543210\",\n \"date_of_birth\": \"1995-04-15\",\n \"monthly_income\": 50000\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"status 201\", () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set(\"otherId\", pm.response.json().id);",
+                  "pm.test(\"has id\", () => pm.expect(pm.response.json().id).to.be.a(\"number\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Name A1 -> 400",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/customers",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{officerToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n \"name\": \"A1\",\n \"email\": \"a1{{ts}}@example.com\",\n \"phone\": \"9876543210\",\n \"date_of_birth\": \"1995-04-15\",\n \"monthly_income\": 50000\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"error VALIDATION_FAILED\", () => pm.expect(pm.response.json().error).to.eql(\"VALIDATION_FAILED\"));",
+                  "pm.test(\"field name\", () => pm.expect(pm.response.json().details.map(d => d.field)).to.include(\"name\"));",
+                  "pm.test(\"has request_id\", () => pm.expect(pm.response.json().request_id).to.be.a(\"string\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Phone 98765 -> 400",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/customers",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{officerToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n \"name\": \"Bad Phone\",\n \"email\": \"p{{ts}}@example.com\",\n \"phone\": \"98765\",\n \"date_of_birth\": \"1995-04-15\",\n \"monthly_income\": 50000\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"error VALIDATION_FAILED\", () => pm.expect(pm.response.json().error).to.eql(\"VALIDATION_FAILED\"));",
+                  "pm.test(\"field phone\", () => pm.expect(pm.response.json().details.map(d => d.field)).to.include(\"phone\"));",
+                  "pm.test(\"has request_id\", () => pm.expect(pm.response.json().request_id).to.be.a(\"string\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Future DOB -> 400",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/customers",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{officerToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n \"name\": \"Future Born\",\n \"email\": \"f{{ts}}@example.com\",\n \"phone\": \"9876543210\",\n \"date_of_birth\": \"2999-01-01\",\n \"monthly_income\": 50000\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"error VALIDATION_FAILED\", () => pm.expect(pm.response.json().error).to.eql(\"VALIDATION_FAILED\"));",
+                  "pm.test(\"field date_of_birth\", () => pm.expect(pm.response.json().details.map(d => d.field)).to.include(\"date_of_birth\"));",
+                  "pm.test(\"has request_id\", () => pm.expect(pm.response.json().request_id).to.be.a(\"string\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Income 0 -> 400",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/customers",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{officerToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n \"name\": \"No Income\",\n \"email\": \"i{{ts}}@example.com\",\n \"phone\": \"9876543210\",\n \"date_of_birth\": \"1995-04-15\",\n \"monthly_income\": 0\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"error VALIDATION_FAILED\", () => pm.expect(pm.response.json().error).to.eql(\"VALIDATION_FAILED\"));",
+                  "pm.test(\"field monthly_income\", () => pm.expect(pm.response.json().details.map(d => d.field)).to.include(\"monthly_income\"));",
+                  "pm.test(\"has request_id\", () => pm.expect(pm.response.json().request_id).to.be.a(\"string\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Two invalid fields -> 400 both",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/customers",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{officerToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n \"name\": \"Two Bad\",\n \"email\": \"not-an-email\",\n \"phone\": \"98765\",\n \"date_of_birth\": \"1995-04-15\",\n \"monthly_income\": 50000\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"error VALIDATION_FAILED\", () => pm.expect(pm.response.json().error).to.eql(\"VALIDATION_FAILED\"));",
+                  "pm.test(\"field email\", () => pm.expect(pm.response.json().details.map(d => d.field)).to.include(\"email\"));",
+                  "pm.test(\"field phone\", () => pm.expect(pm.response.json().details.map(d => d.field)).to.include(\"phone\"));",
+                  "pm.test(\"has request_id\", () => pm.expect(pm.response.json().request_id).to.be.a(\"string\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Duplicate email -> 409",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/customers",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{officerToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n \"name\": \"Bala Again\",\n \"email\": \"bala{{ts}}@example.com\",\n \"phone\": \"9876543210\",\n \"date_of_birth\": \"1995-04-15\",\n \"monthly_income\": 50000\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"status 409\", () => pm.response.to.have.status(409));",
+                  "pm.test(\"error DUPLICATE_EMAIL\", () => pm.expect(pm.response.json().error).to.eql(\"DUPLICATE_EMAIL\"));",
+                  "pm.test(\"has request_id\", () => pm.expect(pm.response.json().request_id).to.be.a(\"string\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Invalid JSON -> 400",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/customers",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{officerToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\": \"Broken\","
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"error INVALID_REQUEST\", () => pm.expect(pm.response.json().error).to.eql(\"INVALID_REQUEST\"));",
+                  "pm.test(\"has request_id\", () => pm.expect(pm.response.json().request_id).to.be.a(\"string\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get customer -> 200",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/customers/{{otherId}}",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{officerToken}}"
+              }
+            ]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"status 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get customer 999 -> 404",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/customers/999",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{officerToken}}"
+              }
+            ]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"status 404\", () => pm.response.to.have.status(404));",
+                  "pm.test(\"error NOT_FOUND\", () => pm.expect(pm.response.json().error).to.eql(\"NOT_FOUND\"));",
+                  "pm.test(\"has request_id\", () => pm.expect(pm.response.json().request_id).to.be.a(\"string\"));",
+                  "pm.test(\"message\", () => pm.expect(pm.response.json().message).to.eql(\"Customer with id 999 not found\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get customer abc -> 400",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/customers/abc",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{officerToken}}"
+              }
+            ]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"error VALIDATION_FAILED\", () => pm.expect(pm.response.json().error).to.eql(\"VALIDATION_FAILED\"));",
+                  "pm.test(\"has request_id\", () => pm.expect(pm.response.json().request_id).to.be.a(\"string\"));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "4 Loans (Round 2 API 3-6)",
+      "item": [
+        {
+          "name": "Amount 5000 -> 400",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/loans",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{officerToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n \"customer_id\": {{otherId}},\n \"amount\": 5000,\n \"tenure_months\": 36\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"error VALIDATION_FAILED\", () => pm.expect(pm.response.json().error).to.eql(\"VALIDATION_FAILED\"));",
+                  "pm.test(\"field amount\", () => pm.expect(pm.response.json().details.map(d => d.field)).to.include(\"amount\"));",
+                  "pm.test(\"has request_id\", () => pm.expect(pm.response.json().request_id).to.be.a(\"string\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Tenure 18 -> 400",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/loans",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{officerToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n \"customer_id\": {{otherId}},\n \"amount\": 300000,\n \"tenure_months\": 18\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"error VALIDATION_FAILED\", () => pm.expect(pm.response.json().error).to.eql(\"VALIDATION_FAILED\"));",
+                  "pm.test(\"field tenure_months\", () => pm.expect(pm.response.json().details.map(d => d.field)).to.include(\"tenure_months\"));",
+                  "pm.test(\"has request_id\", () => pm.expect(pm.response.json().request_id).to.be.a(\"string\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Loan for missing customer -> 404",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/loans",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{officerToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n \"customer_id\": 999999,\n \"amount\": 300000,\n \"tenure_months\": 36\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"status 404\", () => pm.response.to.have.status(404));",
+                  "pm.test(\"error NOT_FOUND\", () => pm.expect(pm.response.json().error).to.eql(\"NOT_FOUND\"));",
+                  "pm.test(\"has request_id\", () => pm.expect(pm.response.json().request_id).to.be.a(\"string\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Customer aged 19",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/customers",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{officerToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n \"name\": \"Young Person\",\n \"email\": \"young{{ts}}@example.com\",\n \"phone\": \"9876543210\",\n \"date_of_birth\": \"{{dob19}}\",\n \"monthly_income\": 50000\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"status 201\", () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set(\"youngId\", pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Aged 19 -> REJECTED age",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/loans",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{officerToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n \"customer_id\": {{youngId}},\n \"amount\": 100000,\n \"tenure_months\": 12\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"status 201\", () => pm.response.to.have.status(201));",
+                  "pm.test(\"REJECTED\", () => pm.expect(pm.response.json().status).to.eql(\"REJECTED\"));",
+                  "pm.test(\"reason\", () => pm.expect(pm.response.json().rejection_reason).to.eql(\"Age must be between 21 and 60\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Customer income 40000",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/customers",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{officerToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n \"name\": \"Low Income\",\n \"email\": \"low{{ts}}@example.com\",\n \"phone\": \"9876543210\",\n \"date_of_birth\": \"1995-04-15\",\n \"monthly_income\": 40000\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"status 201\", () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set(\"lowId\", pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "1,000,000 on 40,000 -> REJECTED income",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/loans",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{officerToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n \"customer_id\": {{lowId}},\n \"amount\": 1000000,\n \"tenure_months\": 36\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"status 201\", () => pm.response.to.have.status(201));",
+                  "pm.test(\"REJECTED\", () => pm.expect(pm.response.json().status).to.eql(\"REJECTED\"));",
+                  "pm.test(\"reason\", () => pm.expect(pm.response.json().rejection_reason).to.eql(\"Requested amount exceeds 20x monthly income\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Customer for active-loan rule",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/customers",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{officerToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n \"name\": \"Full Loans\",\n \"email\": \"full{{ts}}@example.com\",\n \"phone\": \"9876543210\",\n \"date_of_birth\": \"1995-04-15\",\n \"monthly_income\": 50000\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"status 201\", () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set(\"fullId\", pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "300000/36 -> APPROVED 9964.29",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/loans",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{officerToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n \"customer_id\": {{fullId}},\n \"amount\": 300000,\n \"tenure_months\": 36\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"status 201\", () => pm.response.to.have.status(201));",
+                  "pm.test(\"APPROVED\", () => pm.expect(pm.response.json().status).to.eql(\"APPROVED\"));",
+                  "const l = pm.response.json();",
+                  "pm.test(\"EMI 9964.29, rate 12\", () => { pm.expect(l.emi).to.eql(9964.29); pm.expect(l.interest_rate).to.eql(12); });",
+                  "pm.collectionVariables.set(\"fullLoan\", pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Second approval",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/loans",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{officerToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n \"customer_id\": {{fullId}},\n \"amount\": 200000,\n \"tenure_months\": 24\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"status 201\", () => pm.response.to.have.status(201));",
+                  "pm.test(\"APPROVED\", () => pm.expect(pm.response.json().status).to.eql(\"APPROVED\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Third -> REJECTED active loans",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/loans",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{officerToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n \"customer_id\": {{fullId}},\n \"amount\": 100000,\n \"tenure_months\": 12\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"status 201\", () => pm.response.to.have.status(201));",
+                  "pm.test(\"REJECTED\", () => pm.expect(pm.response.json().status).to.eql(\"REJECTED\"));",
+                  "pm.test(\"reason\", () => pm.expect(pm.response.json().rejection_reason).to.eql(\"Customer already has 2 active loans\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get loan -> 200",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/loans/{{fullLoan}}",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{officerToken}}"
+              }
+            ]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"status 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get loan 999999 -> 404",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/loans/999999",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{officerToken}}"
+              }
+            ]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"status 404\", () => pm.response.to.have.status(404));",
+                  "pm.test(\"error NOT_FOUND\", () => pm.expect(pm.response.json().error).to.eql(\"NOT_FOUND\"));",
+                  "pm.test(\"has request_id\", () => pm.expect(pm.response.json().request_id).to.be.a(\"string\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get loan abc -> 400",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/loans/abc",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{officerToken}}"
+              }
+            ]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"error VALIDATION_FAILED\", () => pm.expect(pm.response.json().error).to.eql(\"VALIDATION_FAILED\"));",
+                  "pm.test(\"has request_id\", () => pm.expect(pm.response.json().request_id).to.be.a(\"string\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List loans newest first",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/customers/{{fullId}}/loans",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{officerToken}}"
+              }
+            ]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"status 200\", () => pm.response.to.have.status(200));",
+                  "const ids = pm.response.json().map(l => l.id);",
+                  "pm.test(\"3 loans\", () => pm.expect(ids.length).to.eql(3));",
+                  "pm.test(\"newest first\", () => pm.expect(ids).to.eql([...ids].sort((a, b) => b - a)));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List ?status=APPROVED",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/customers/{{fullId}}/loans?status=APPROVED",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{officerToken}}"
+              }
+            ]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"2 approved\", () => pm.expect(pm.response.json().length).to.eql(2));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List ?status=PENDING -> 400",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/customers/{{fullId}}/loans?status=PENDING",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{officerToken}}"
+              }
+            ]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"error VALIDATION_FAILED\", () => pm.expect(pm.response.json().error).to.eql(\"VALIDATION_FAILED\"));",
+                  "pm.test(\"field status\", () => pm.expect(pm.response.json().details.map(d => d.field)).to.include(\"status\"));",
+                  "pm.test(\"has request_id\", () => pm.expect(pm.response.json().request_id).to.be.a(\"string\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List missing customer -> 404",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/customers/999999/loans",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{officerToken}}"
+              }
+            ]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"status 404\", () => pm.response.to.have.status(404));",
+                  "pm.test(\"error NOT_FOUND\", () => pm.expect(pm.response.json().error).to.eql(\"NOT_FOUND\"));",
+                  "pm.test(\"has request_id\", () => pm.expect(pm.response.json().request_id).to.be.a(\"string\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Summary",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/customers/{{fullId}}/summary",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{officerToken}}"
+              }
+            ]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"status 200\", () => pm.response.to.have.status(200));",
+                  "const s = pm.response.json();",
+                  "pm.test(\"counts 3/2/1\", () => { pm.expect(s.total_applications).to.eql(3); pm.expect(s.approved_count).to.eql(2); pm.expect(s.rejected_count).to.eql(1); });",
+                  "pm.test(\"approved amount 500000\", () => pm.expect(s.total_approved_amount).to.eql(500000));",
+                  "pm.test(\"emi 19285.86, ratio 38.57\", () => { pm.expect(s.total_monthly_emi).to.eql(19285.86); pm.expect(s.emi_to_income_ratio).to.eql(38.57); });",
+                  "pm.test(\"MEDIUM\", () => pm.expect(s.risk_band).to.eql(\"MEDIUM\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Customer with no loans",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/customers",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{officerToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n \"name\": \"No Loans\",\n \"email\": \"empty{{ts}}@example.com\",\n \"phone\": \"9876543210\",\n \"date_of_birth\": \"1995-04-15\",\n \"monthly_income\": 50000\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"status 201\", () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set(\"emptyId\", pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Summary with no loans -> zeros, LOW",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/customers/{{emptyId}}/summary",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{officerToken}}"
+              }
+            ]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"status 200\", () => pm.response.to.have.status(200));",
+                  "const s = pm.response.json();",
+                  "pm.test(\"zeros\", () => { pm.expect(s.total_applications).to.eql(0); pm.expect(s.total_monthly_emi).to.eql(0); pm.expect(s.emi_to_income_ratio).to.eql(0); });",
+                  "pm.test(\"LOW\", () => pm.expect(s.risk_band).to.eql(\"LOW\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Summary missing -> 404",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/customers/999999/summary",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{officerToken}}"
+              }
+            ]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"status 404\", () => pm.response.to.have.status(404));",
+                  "pm.test(\"error NOT_FOUND\", () => pm.expect(pm.response.json().error).to.eql(\"NOT_FOUND\"));",
+                  "pm.test(\"has request_id\", () => pm.expect(pm.response.json().request_id).to.be.a(\"string\"));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "5 Ownership (customer anitha)",
+      "item": [
+        {
+          "name": "Own loans -> 200",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/customers/{{customerId}}/loans",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customerToken}}"
+              }
+            ]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"status 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Own summary -> 200",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/customers/{{customerId}}/summary",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customerToken}}"
+              }
+            ]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"status 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Own loan -> 200",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/loans/{{customerLoan}}",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customerToken}}"
+              }
+            ]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"status 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Other customer -> 403",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/customers/{{otherId}}",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customerToken}}"
+              }
+            ]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"status 403\", () => pm.response.to.have.status(403));",
+                  "pm.test(\"error FORBIDDEN\", () => pm.expect(pm.response.json().error).to.eql(\"FORBIDDEN\"));",
+                  "pm.test(\"has request_id\", () => pm.expect(pm.response.json().request_id).to.be.a(\"string\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Other loans -> 403",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/customers/{{fullId}}/loans",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customerToken}}"
+              }
+            ]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"status 403\", () => pm.response.to.have.status(403));",
+                  "pm.test(\"error FORBIDDEN\", () => pm.expect(pm.response.json().error).to.eql(\"FORBIDDEN\"));",
+                  "pm.test(\"has request_id\", () => pm.expect(pm.response.json().request_id).to.be.a(\"string\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Other summary -> 403",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/customers/{{fullId}}/summary",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customerToken}}"
+              }
+            ]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"status 403\", () => pm.response.to.have.status(403));",
+                  "pm.test(\"error FORBIDDEN\", () => pm.expect(pm.response.json().error).to.eql(\"FORBIDDEN\"));",
+                  "pm.test(\"has request_id\", () => pm.expect(pm.response.json().request_id).to.be.a(\"string\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Other loan -> 403",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/loans/{{fullLoan}}",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customerToken}}"
+              }
+            ]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"status 403\", () => pm.response.to.have.status(403));",
+                  "pm.test(\"error FORBIDDEN\", () => pm.expect(pm.response.json().error).to.eql(\"FORBIDDEN\"));",
+                  "pm.test(\"has request_id\", () => pm.expect(pm.response.json().request_id).to.be.a(\"string\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Apply for other customer -> 403",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/loans",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customerToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n \"customer_id\": {{otherId}},\n \"amount\": 100000,\n \"tenure_months\": 12\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"status 403\", () => pm.response.to.have.status(403));",
+                  "pm.test(\"error FORBIDDEN\", () => pm.expect(pm.response.json().error).to.eql(\"FORBIDDEN\"));",
+                  "pm.test(\"has request_id\", () => pm.expect(pm.response.json().request_id).to.be.a(\"string\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Missing id -> 403 (no probing)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/customers/999999",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customerToken}}"
+              }
+            ]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"status 403\", () => pm.response.to.have.status(403));",
+                  "pm.test(\"error FORBIDDEN\", () => pm.expect(pm.response.json().error).to.eql(\"FORBIDDEN\"));",
+                  "pm.test(\"has request_id\", () => pm.expect(pm.response.json().request_id).to.be.a(\"string\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Officer reads anitha's loan -> 200",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/loans/{{customerLoan}}",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{officerToken}}"
+              }
+            ]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"status 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
