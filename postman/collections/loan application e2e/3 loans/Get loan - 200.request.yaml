@@ -1,0 +1,13 @@
+$kind: http-request
+name: "Get loan - 200"
+url: "{{baseUrl}}/loans/{{fullLoan}}"
+method: GET
+headers:
+  - key: Authorization
+    value: "Bearer {{officerToken}}"
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("status 200", () => pm.response.to.have.status(200));
+order: 13000

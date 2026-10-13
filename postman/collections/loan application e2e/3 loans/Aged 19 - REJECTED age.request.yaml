@@ -1,0 +1,25 @@
+$kind: http-request
+name: "Aged 19 - REJECTED age"
+url: "{{baseUrl}}/loans/apply"
+method: POST
+headers:
+  - key: Authorization
+    value: "Bearer {{officerToken}}"
+  - key: Content-Type
+    value: "application/json"
+body:
+  type: text
+  content: |-
+    {
+      "customer_id": {{youngId}},
+      "amount": 100000,
+      "tenure_months": 12
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("status 201", () => pm.response.to.have.status(201));
+      pm.test("REJECTED", () => pm.expect(pm.response.json().status).to.eql("REJECTED"));
+      pm.test("reason", () => pm.expect(pm.response.json().rejection_reason).to.eql("Age must be between 21 and 60"));
+order: 6000

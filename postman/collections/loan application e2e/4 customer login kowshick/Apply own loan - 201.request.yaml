@@ -1,0 +1,24 @@
+$kind: http-request
+name: "Apply own loan - 201"
+url: "{{baseUrl}}/loans/apply"
+method: POST
+headers:
+  - key: Authorization
+    value: "Bearer {{customerToken}}"
+  - key: Content-Type
+    value: "application/json"
+body:
+  type: text
+  content: |-
+    {
+      "customer_id": {{myId}},
+      "amount": 100000,
+      "tenure_months": 12
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("status 201", () => pm.response.to.have.status(201));
+      pm.collectionVariables.set("myLoan", pm.response.json().id);
+order: 4000

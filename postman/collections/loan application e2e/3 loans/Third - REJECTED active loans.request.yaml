@@ -1,0 +1,25 @@
+$kind: http-request
+name: "Third - REJECTED active loans"
+url: "{{baseUrl}}/loans/apply"
+method: POST
+headers:
+  - key: Authorization
+    value: "Bearer {{officerToken}}"
+  - key: Content-Type
+    value: "application/json"
+body:
+  type: text
+  content: |-
+    {
+      "customer_id": {{fullId}},
+      "amount": 100000,
+      "tenure_months": 12
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("status 201", () => pm.response.to.have.status(201));
+      pm.test("REJECTED", () => pm.expect(pm.response.json().status).to.eql("REJECTED"));
+      pm.test("reason", () => pm.expect(pm.response.json().rejection_reason).to.eql("Customer already has 2 active loans"));
+order: 12000

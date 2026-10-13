@@ -1,10 +1,18 @@
-from datetime import date
-from decimal import Decimal
 import enum
-from sqlalchemy import CheckConstraint, Date, ForeignKey, Integer, Numeric, String, func,Enum
+from datetime import date, datetime
+from decimal import Decimal
+
+from sqlalchemy import (
+    CheckConstraint,
+    Date,
+    Enum,
+    ForeignKey,
+    Integer,
+    Numeric,
+    String,
+    func,
+)
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, validates
-
-
 
 
 class Base(DeclarativeBase):
@@ -23,7 +31,7 @@ class Customer(Base):
 
     @validates("date_of_birth")
     def validate_date_of_birth(self, key, value):
-        if value >= date.today():
+        if value >= datetime.now().astimezone().date():
             raise ValueError("Date of birth must be in the past")
         return value
 

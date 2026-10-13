@@ -1,0 +1,26 @@
+$kind: http-request
+name: "Create a customer - 403"
+url: "{{baseUrl}}/customers/"
+method: POST
+headers:
+  - key: Authorization
+    value: "Bearer {{customerToken}}"
+  - key: Content-Type
+    value: "application/json"
+body:
+  type: text
+  content: |-
+    {
+      "name": "Sneaky Person",
+      "email": "sneaky{{ts}}@example.com",
+      "phone": "{{phone8}}",
+      "date_of_birth": "1995-04-15",
+      "monthly_income": 50000
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("status 403", () => pm.response.to.have.status(403));
+      pm.test("error FORBIDDEN", () => pm.expect(pm.response.json().error).to.eql("FORBIDDEN"));
+order: 12000

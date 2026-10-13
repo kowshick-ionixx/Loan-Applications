@@ -27,19 +27,3 @@ class LoanOut(BaseModel):
     applied_on: date
 
     model_config = ConfigDict(from_attributes=True)
-
-
-class LoanSummaryOut(BaseModel):
-    customer_id: int
-    customer_name: str
-    total_applications: int
-    approved_count: int
-    rejected_count: int
-    total_approved_amount: Decimal
-    total_monthly_emi: Decimal
-    emi_to_income_ratio: Decimal
-    risk_band: Literal["LOW", "MEDIUM", "HIGH"]
-
-
-class messageOut(BaseModel):
-    message: str

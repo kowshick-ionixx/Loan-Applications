@@ -1,0 +1,25 @@
+$kind: http-request
+name: "1000000 on 40000 - REJECTED income"
+url: "{{baseUrl}}/loans/apply"
+method: POST
+headers:
+  - key: Authorization
+    value: "Bearer {{officerToken}}"
+  - key: Content-Type
+    value: "application/json"
+body:
+  type: text
+  content: |-
+    {
+      "customer_id": {{lowId}},
+      "amount": 1000000,
+      "tenure_months": 36
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("status 201", () => pm.response.to.have.status(201));
+      pm.test("REJECTED", () => pm.expect(pm.response.json().status).to.eql("REJECTED"));
+      pm.test("reason", () => pm.expect(pm.response.json().rejection_reason).to.eql("Requested amount exceeds 20x monthly income"));
+order: 8000

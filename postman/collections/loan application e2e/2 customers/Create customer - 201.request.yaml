@@ -1,0 +1,26 @@
+$kind: http-request
+name: "Create customer - 201"
+url: "{{baseUrl}}/customers/"
+method: POST
+headers:
+  - key: Authorization
+    value: "Bearer {{officerToken}}"
+  - key: Content-Type
+    value: "application/json"
+body:
+  type: text
+  content: |-
+    {
+      "name": "Bala Murugan",
+      "email": "bala{{ts}}@example.com",
+      "phone": "{{phone1}}",
+      "date_of_birth": "1995-04-15",
+      "monthly_income": 50000
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("status 201", () => pm.response.to.have.status(201));
+      pm.collectionVariables.set("otherId", pm.response.json().id);
+order: 1000

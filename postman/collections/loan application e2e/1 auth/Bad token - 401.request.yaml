@@ -1,0 +1,14 @@
+$kind: http-request
+name: "Bad token - 401"
+url: "{{baseUrl}}/loans/1"
+method: GET
+headers:
+  - key: Authorization
+    value: "Bearer {{badToken}}"
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("status 401", () => pm.response.to.have.status(401));
+      pm.test("error UNAUTHORIZED", () => pm.expect(pm.response.json().error).to.eql("UNAUTHORIZED"));
+order: 3000

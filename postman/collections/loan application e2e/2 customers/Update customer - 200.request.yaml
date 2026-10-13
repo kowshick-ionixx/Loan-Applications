@@ -1,0 +1,26 @@
+$kind: http-request
+name: "Update customer - 200"
+url: "{{baseUrl}}/customers/{{otherId}}"
+method: PUT
+headers:
+  - key: Authorization
+    value: "Bearer {{officerToken}}"
+  - key: Content-Type
+    value: "application/json"
+body:
+  type: text
+  content: |-
+    {
+      "name": "Bala Murugan",
+      "email": "bala{{ts}}@example.com",
+      "phone": "{{phone1}}",
+      "date_of_birth": "1995-04-15",
+      "monthly_income": 80000
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("status 200", () => pm.response.to.have.status(200));
+      pm.test("income updated", () => pm.expect(Number(pm.response.json().monthly_income)).to.eql(80000));
+order: 14000

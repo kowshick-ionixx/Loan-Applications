@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 from decimal import ROUND_HALF_UP, Decimal
 
 from sqlalchemy.orm import Session
@@ -10,9 +10,8 @@ from loan_application.exceptions import (
 )
 from loan_application.repositories import customer_repositories, loan_repositories
 from loan_application.schemas.loan_schemas import LoanApplyIn
-from loan_application.tables import Customer, Loan
-VALID_STATUSES = {"APPROVED", "REJECTED"}
 from loan_application.services import customer_services
+from loan_application.tables import Customer, Loan
 
 INTEREST_RATES = {
     12: Decimal(10),
@@ -35,8 +34,7 @@ def calculate_emi(principal: Decimal, annual_rate: Decimal, months: int) -> Deci
 
 
 def check_eligibility(db: Session, customer: Customer, amount: Decimal) -> str | None:
-    """Return the rejection reason of the first failed rule, or None if eligible."""
-    age = calculate_age(customer.date_of_birth, date.today())
+    age = calculate_age(customer.date_of_birth, datetime.now().astimezone().date())
     if not (21 <= age <= 60):
         return "Age must be between 21 and 60"
 
@@ -82,7 +80,7 @@ def apply_for_loan(db: Session, data: LoanApplyIn) -> Loan:
 
 
 def get_loan(db: Session, loan_id: int) -> Loan:
-    if loan_id <= 0: 
+    if loan_id <= 0:
         raise InvalidInputError("id must be a positive integer")
     loan = loan_repositories.get_by_id(db, loan_id)
     if loan is None:
@@ -129,46 +127,6 @@ def get_customer_summary(db: Session, customer_id: int) -> dict:
     }
 
 
-def approve_loan(db: Session, loan_id: int) -> Loan:
-    loan = loan_repositories.get_by_id(db, loan_id)
-
-    if loan is None:
-        raise NotFoundError("Loan not found")
-
-    if loan.status == "APPROVED":
-        return loan
-
-    rate = INTEREST_RATES[loan.tenure_months]
-    loan.interest_rate = rate
-    loan.emi = calculate_emi(
-        loan.amount,
-        rate,
-        loan.tenure_months,
-    )
-    loan.status = "APPROVED"
-    loan.rejection_reason = None
-
-    db.commit()
-    db.refresh(loan)
-    return loan
-
-
-def patch_loan(db: Session, loan_id: int) -> Loan:
-    loan = loan_repositories.get_by_id(db, loan_id)
-
-    if loan is None:
-        raise NotFoundError("Loan not found")
-
-    loan.status = "REJECTED"
-    loan.interest_rate = None
-    loan.emi = None
-    loan.rejection_reason = "Rejected by administrator"
-
-    db.commit()
-    db.refresh(loan)
-    return loan
-
-
 def delete_loan(db: Session, loan_id: int) -> None:
     loan = loan_repositories.get_by_id(db, loan_id)
 
@@ -184,10 +142,7 @@ def list_loans_for_customer(
     customer_id: int,
     status: str | None = None,
 ) -> list[Loan]:
-    customer = customer_repositories.get_by_id(db, customer_id)
-
-    if customer is None:
-        raise CustomerNotFound(customer_id)
+    customer_services.get_customer(db, customer_id)
 
     if status is not None:
         status = status.upper()
@@ -199,15 +154,3 @@ def list_loans_for_customer(
         customer_id,
         status,
     )
-
-
-
-
-
-
-def list_customer_loans(db: Session, customer_id: int, status: str | None = None):
-    if status is not None and status not in VALID_STATUSES:
-        raise InvalidInputError("status must be APPROVED or REJECTED")
-
-    customer_services.get_customer(db, customer_id)  # raises 400 or 404
-    return loan_repositories.list_by_customer(db, customer_id, status)

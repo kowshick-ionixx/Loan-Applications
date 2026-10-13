@@ -1,0 +1,26 @@
+$kind: http-request
+name: "Create temp customer"
+url: "{{baseUrl}}/customers/"
+method: POST
+headers:
+  - key: Authorization
+    value: "Bearer {{officerToken}}"
+  - key: Content-Type
+    value: "application/json"
+body:
+  type: text
+  content: |-
+    {
+      "name": "Temp Person",
+      "email": "temp{{ts}}@example.com",
+      "phone": "{{phone4}}",
+      "date_of_birth": "1995-04-15",
+      "monthly_income": 50000
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("status 201", () => pm.response.to.have.status(201));
+      pm.collectionVariables.set("emptyId", pm.response.json().id);
+order: 15000

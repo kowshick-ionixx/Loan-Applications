@@ -1,0 +1,18 @@
+$kind: http-request
+name: "Summary"
+url: "{{baseUrl}}/customers/{{fullId}}/summary"
+method: GET
+headers:
+  - key: Authorization
+    value: "Bearer {{officerToken}}"
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("status 200", () => pm.response.to.have.status(200));
+      const s = pm.response.json();
+      pm.test("counts 3/2/1", () => { pm.expect(s.total_applications).to.eql(3); pm.expect(s.approved_count).to.eql(2); pm.expect(s.rejected_count).to.eql(1); });
+      pm.test("approved amount 500000", () => pm.expect(Number(s.total_approved_amount)).to.eql(500000));
+      pm.test("emi 19285.86, ratio 38.57", () => { pm.expect(Number(s.total_monthly_emi)).to.eql(19285.86); pm.expect(Number(s.emi_to_income_ratio)).to.eql(38.57); });
+      pm.test("MEDIUM", () => pm.expect(s.risk_band).to.eql("MEDIUM"));
+order: 20000

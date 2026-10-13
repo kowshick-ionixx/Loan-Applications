@@ -1,0 +1,18 @@
+$kind: http-request
+name: "Login officer"
+url: "{{baseUrl}}/auth/login"
+method: POST
+headers:
+  - key: Content-Type
+    value: "application/x-www-form-urlencoded"
+body:
+  type: text
+  content: |-
+    username=officer1&password=Officer@123
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("status 200", () => pm.response.to.have.status(200));
+      pm.collectionVariables.set("officerToken", pm.response.json().access_token);
+order: 5000

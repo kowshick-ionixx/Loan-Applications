@@ -1,0 +1,20 @@
+$kind: http-request
+name: "Health"
+url: "{{baseUrl}}/health"
+method: GET
+scripts:
+  - type: beforeRequest
+    language: text/javascript
+    code: |-
+      const ts = Date.now();
+      pm.collectionVariables.set("ts", ts);
+      const d = new Date(); d.setFullYear(d.getFullYear() - 19);
+      pm.collectionVariables.set("dob19", d.toISOString().slice(0, 10));
+      for (let i = 1; i <= 8; i++) {
+        pm.collectionVariables.set(`phone${i}`, "8" + String(ts).slice(-8) + i);
+      }
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("status 200", () => pm.response.to.have.status(200));
+order: 1000

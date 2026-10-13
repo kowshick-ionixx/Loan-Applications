@@ -156,45 +156,6 @@ def test_list_loans_for_customer(db_session):
     assert loans[0].status == "APPROVED"
 
 
-def test_list_loans_invalid_status(db_session):
-    customer = create_customer(db_session)
-
-    with pytest.raises(ValueError):
-        loan_services.list_loans_for_customer(
-            db_session,
-            customer.id,
-            "PENDING",
-        )
-
-
-def test_approve_loan(db_session):
-    customer = create_customer(db_session)
-
-    loan = loan_services.apply_for_loan(
-        db_session,
-        make_loan_data(customer.id),
-    )
-
-    updated = loan_services.approve_loan(db_session, loan.id)
-
-    assert updated.status == "APPROVED"
-    assert updated.emi is not None
-
-
-def test_patch_loan_reject(db_session):
-    customer = create_customer(db_session)
-
-    loan = loan_services.apply_for_loan(
-        db_session,
-        make_loan_data(customer.id),
-    )
-
-    updated = loan_services.patch_loan(db_session, loan.id)
-
-    assert updated.status == "REJECTED"
-    assert updated.rejection_reason == "Rejected by administrator"
-
-
 def test_delete_loan(db_session):
     customer = create_customer(db_session)
 

@@ -1,0 +1,26 @@
+$kind: http-request
+name: "Duplicate email - 409"
+url: "{{baseUrl}}/customers/"
+method: POST
+headers:
+  - key: Authorization
+    value: "Bearer {{officerToken}}"
+  - key: Content-Type
+    value: "application/json"
+body:
+  type: text
+  content: |-
+    {
+      "name": "Bala Again",
+      "email": "bala{{ts}}@example.com",
+      "phone": "{{phone3}}",
+      "date_of_birth": "1995-04-15",
+      "monthly_income": 50000
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("status 409", () => pm.response.to.have.status(409));
+      pm.test("error DUPLICATE_EMAIL", () => pm.expect(pm.response.json().error).to.eql("DUPLICATE_EMAIL"));
+order: 8000

@@ -1,0 +1,14 @@
+$kind: http-request
+name: "Get customer abc - 400"
+url: "{{baseUrl}}/customers/abc"
+method: GET
+headers:
+  - key: Authorization
+    value: "Bearer {{officerToken}}"
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("status 400", () => pm.response.to.have.status(400));
+      pm.test("error VALIDATION_FAILED", () => pm.expect(pm.response.json().error).to.eql("VALIDATION_FAILED"));
+order: 12000

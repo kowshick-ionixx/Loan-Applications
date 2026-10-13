@@ -1,0 +1,25 @@
+$kind: http-request
+name: "Tenure 18 - 400"
+url: "{{baseUrl}}/loans/apply"
+method: POST
+headers:
+  - key: Authorization
+    value: "Bearer {{officerToken}}"
+  - key: Content-Type
+    value: "application/json"
+body:
+  type: text
+  content: |-
+    {
+      "customer_id": {{otherId}},
+      "amount": 300000,
+      "tenure_months": 18
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("status 400", () => pm.response.to.have.status(400));
+      pm.test("error VALIDATION_FAILED", () => pm.expect(pm.response.json().error).to.eql("VALIDATION_FAILED"));
+      pm.test("field tenure_months", () => pm.expect(pm.response.json().details.map(d => d.field)).to.include("tenure_months"));
+order: 2000

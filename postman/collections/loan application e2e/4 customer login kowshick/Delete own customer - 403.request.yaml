@@ -1,0 +1,14 @@
+$kind: http-request
+name: "Delete own customer - 403"
+url: "{{baseUrl}}/customers/{{myId}}"
+method: DELETE
+headers:
+  - key: Authorization
+    value: "Bearer {{customerToken}}"
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("status 403", () => pm.response.to.have.status(403));
+      pm.test("error FORBIDDEN", () => pm.expect(pm.response.json().error).to.eql("FORBIDDEN"));
+order: 11000

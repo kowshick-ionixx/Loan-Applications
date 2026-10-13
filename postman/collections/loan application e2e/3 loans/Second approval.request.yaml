@@ -1,0 +1,24 @@
+$kind: http-request
+name: "Second approval"
+url: "{{baseUrl}}/loans/apply"
+method: POST
+headers:
+  - key: Authorization
+    value: "Bearer {{officerToken}}"
+  - key: Content-Type
+    value: "application/json"
+body:
+  type: text
+  content: |-
+    {
+      "customer_id": {{fullId}},
+      "amount": 200000,
+      "tenure_months": 24
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("status 201", () => pm.response.to.have.status(201));
+      pm.test("APPROVED", () => pm.expect(pm.response.json().status).to.eql("APPROVED"));
+order: 11000

@@ -3,13 +3,12 @@ from decimal import Decimal
 
 import pytest
 
-from loan_application.exceptions import CustomerNotFound  # use your real exception name
+from loan_application.exceptions import CustomerNotFound
 from loan_application.schemas import CustomerIn
 from loan_application.services import customer_services
 
 
 def make_customer_data(**overrides):
-    # Fill in the fields your CustomerIn schema actually requires
     default_data = {
         "name": "mahesh",
         "email": "mahesh@example.com",

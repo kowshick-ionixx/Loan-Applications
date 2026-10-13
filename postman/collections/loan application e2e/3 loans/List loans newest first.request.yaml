@@ -1,0 +1,16 @@
+$kind: http-request
+name: "List loans newest first"
+url: "{{baseUrl}}/customers/{{fullId}}/loans"
+method: GET
+headers:
+  - key: Authorization
+    value: "Bearer {{officerToken}}"
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("status 200", () => pm.response.to.have.status(200));
+      const ids = pm.response.json().map(l => l.id);
+      pm.test("3 loans", () => pm.expect(ids.length).to.eql(3));
+      pm.test("newest first", () => pm.expect(ids).to.eql([...ids].sort((a, b) => b - a)));
+order: 16000

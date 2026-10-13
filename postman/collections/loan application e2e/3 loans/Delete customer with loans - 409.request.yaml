@@ -1,0 +1,13 @@
+$kind: http-request
+name: "Delete customer with loans - 409"
+url: "{{baseUrl}}/customers/{{fullId}}"
+method: DELETE
+headers:
+  - key: Authorization
+    value: "Bearer {{officerToken}}"
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("status 409", () => pm.response.to.have.status(409));
+order: 22000

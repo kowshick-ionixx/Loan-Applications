@@ -1,0 +1,8 @@
+$kind: collection
+variables:
+  - key: baseUrl
+    value: http://127.0.0.1:8000
+  - key: badToken
+    value: not-a-real-jwt
+  - key: myId
+    value: "1"

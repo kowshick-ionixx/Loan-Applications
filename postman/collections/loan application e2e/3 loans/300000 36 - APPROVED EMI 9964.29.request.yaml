@@ -1,0 +1,27 @@
+$kind: http-request
+name: "300000 36 - APPROVED EMI 9964.29"
+url: "{{baseUrl}}/loans/apply"
+method: POST
+headers:
+  - key: Authorization
+    value: "Bearer {{officerToken}}"
+  - key: Content-Type
+    value: "application/json"
+body:
+  type: text
+  content: |-
+    {
+      "customer_id": {{fullId}},
+      "amount": 300000,
+      "tenure_months": 36
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("status 201", () => pm.response.to.have.status(201));
+      pm.test("APPROVED", () => pm.expect(pm.response.json().status).to.eql("APPROVED"));
+      const l = pm.response.json();
+      pm.test("EMI 9964.29, rate 12", () => { pm.expect(Number(l.emi)).to.eql(9964.29); pm.expect(Number(l.interest_rate)).to.eql(12); });
+      pm.collectionVariables.set("fullLoan", pm.response.json().id);
+order: 10000

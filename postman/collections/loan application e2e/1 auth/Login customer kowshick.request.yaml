@@ -1,0 +1,18 @@
+$kind: http-request
+name: "Login customer kowshick"
+url: "{{baseUrl}}/auth/login"
+method: POST
+headers:
+  - key: Content-Type
+    value: "application/x-www-form-urlencoded"
+body:
+  type: text
+  content: |-
+    username=kowshick&password=Kowshick@123
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("status 200", () => pm.response.to.have.status(200));
+      pm.collectionVariables.set("customerToken", pm.response.json().access_token);
+order: 6000

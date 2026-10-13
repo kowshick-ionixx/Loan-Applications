@@ -1,19 +1,17 @@
-import random
-from datetime import date
+import re
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 
 class CustomerIn(BaseModel):
-    name: str = Field(min_length=1, max_length=100)
-    email: str
-    phone: str = Field(
-        default_factory=lambda: str(random.randint(1000000000, 9999999999))
-    )
-    date_of_birth: date = Field(default_factory=lambda: date(1990, 1, 1))
-    monthly_income: Decimal = Decimal("50000.00")
+    name: str = Field(min_length=1, max_length=50)
+    email: EmailStr
+    phone: str
+    date_of_birth: date
+    monthly_income: Decimal
 
     @field_validator("name")
     @classmethod
@@ -23,6 +21,8 @@ class CustomerIn(BaseModel):
             raise ValueError("Name cannot be empty")
         if len(value) < 3:
             raise ValueError("Name must be at least 3 characters long")
+        if not re.fullmatch(r"[A-Za-z ]+", value):
+            raise ValueError("Name must contain only letters and spaces")
         return value
 
     @field_validator("phone")
@@ -35,7 +35,7 @@ class CustomerIn(BaseModel):
     @field_validator("date_of_birth")
     @classmethod
     def dob_must_be_in_past(cls, value: date) -> date:
-        if value >= date.today():
+        if value >= datetime.now().astimezone().date():
             raise ValueError("Date of birth must be in the past")
         return value
 

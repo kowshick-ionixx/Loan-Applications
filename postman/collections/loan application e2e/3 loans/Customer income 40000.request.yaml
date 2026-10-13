@@ -1,0 +1,26 @@
+$kind: http-request
+name: "Customer income 40000"
+url: "{{baseUrl}}/customers/"
+method: POST
+headers:
+  - key: Authorization
+    value: "Bearer {{officerToken}}"
+  - key: Content-Type
+    value: "application/json"
+body:
+  type: text
+  content: |-
+    {
+      "name": "Low Income",
+      "email": "low{{ts}}@example.com",
+      "phone": "{{phone6}}",
+      "date_of_birth": "1995-04-15",
+      "monthly_income": 40000
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("status 201", () => pm.response.to.have.status(201));
+      pm.collectionVariables.set("lowId", pm.response.json().id);
+order: 7000

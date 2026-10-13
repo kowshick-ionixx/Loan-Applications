@@ -1,0 +1,14 @@
+$kind: http-request
+name: "List status APPROVED"
+url: "{{baseUrl}}/customers/{{fullId}}/loans?status=APPROVED"
+method: GET
+headers:
+  - key: Authorization
+    value: "Bearer {{officerToken}}"
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("status 200", () => pm.response.to.have.status(200));
+      pm.test("2 approved", () => pm.expect(pm.response.json().length).to.eql(2));
+order: 17000

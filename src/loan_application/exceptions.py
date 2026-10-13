@@ -21,6 +21,9 @@ class InvalidInputError(Exception):
 
 
 class ConflictError(Exception):
-    def __init__(self, message: str = "Conflict with existing data"):
+    def __init__(
+        self, message: str = "Conflict with existing data", error: str = "CONFLICT"
+    ):
         self.message = message
+        self.error = error
         super().__init__(message)

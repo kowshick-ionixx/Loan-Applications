@@ -1,14 +1,16 @@
+import logging
+
 import jwt
-from fastapi import Depends, HTTPException
+from fastapi import Depends, HTTPException, Request
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
-from loan_application.logging_context import user_id_ctx
+
 from loan_application.db import get_db
+from loan_application.logging_context import user_id_ctx
 from loan_application.repositories import user_repositories
 from loan_application.security import decode_access_token
 from loan_application.tables import User, UserRole
-import logging
-from fastapi import Request
+
 logger = logging.getLogger(__name__)
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
@@ -41,6 +43,7 @@ def require_roles(*roles: UserRole):
         return user
 
     return checker
+
 
 async def authenticated_user(
     request: Request,

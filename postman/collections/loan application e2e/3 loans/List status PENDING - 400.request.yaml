@@ -1,0 +1,13 @@
+$kind: http-request
+name: "List status PENDING - 400"
+url: "{{baseUrl}}/customers/{{fullId}}/loans?status=PENDING"
+method: GET
+headers:
+  - key: Authorization
+    value: "Bearer {{officerToken}}"
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("status 400", () => pm.response.to.have.status(400));
+order: 18000

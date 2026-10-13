@@ -2,7 +2,7 @@ import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from loan_application.tables import Base  # adjust if your Base lives elsewhere
+from loan_application.tables import Base
 
 engine = create_engine("sqlite:///:memory:")
 TestingSession = sessionmaker(bind=engine)

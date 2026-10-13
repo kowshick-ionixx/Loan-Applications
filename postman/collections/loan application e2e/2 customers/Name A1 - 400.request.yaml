@@ -1,0 +1,27 @@
+$kind: http-request
+name: "Name A1 - 400"
+url: "{{baseUrl}}/customers/"
+method: POST
+headers:
+  - key: Authorization
+    value: "Bearer {{officerToken}}"
+  - key: Content-Type
+    value: "application/json"
+body:
+  type: text
+  content: |-
+    {
+      "name": "A1",
+      "email": "a1{{ts}}@example.com",
+      "phone": "{{phone2}}",
+      "date_of_birth": "1995-04-15",
+      "monthly_income": 50000
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("status 400", () => pm.response.to.have.status(400));
+      pm.test("error VALIDATION_FAILED", () => pm.expect(pm.response.json().error).to.eql("VALIDATION_FAILED"));
+      pm.test("field name", () => pm.expect(pm.response.json().details.map(d => d.field)).to.include("name"));
+order: 2000

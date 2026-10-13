@@ -1,9 +1,12 @@
+from sqlalchemy.exc import IntegrityError
+
 from loan_application.db import SessionLocal
 from loan_application.repositories import user_repositories
 from loan_application.security import hash_password
-from loan_application.tables import User, UserRole
-USERNAME = "officer"
-PASSWORD = "ChangeMe123!"
+from loan_application.tables import Customer, User, UserRole
+
+USERNAME = "officer1"
+PASSWORD = "Officer@123"
 
 
 def main() -> None:
@@ -18,14 +21,28 @@ def main() -> None:
                 role=UserRole.OFFICER,
             )
         )
-        db.commit()
+        try:
+            db.commit()
+        except IntegrityError as e:
+            db.rollback()
+            print(f"Could not create officer: {e.orig}")
+            return
         print("Officer created")
+
 
 def create_customer_user(username: str, password: str, customer_id: int) -> None:
     with SessionLocal() as db:
         if user_repositories.get_by_username(db, username):
             print("User already exists")
             return
+
+        if db.get(Customer, customer_id) is None:
+            print(
+                f"Customer with id {customer_id} not found in loan_db - create it first "
+                f"with POST /customers/ as officer1, then use the id it returns"
+            )
+            return
+
         db.add(
             User(
                 username=username,
@@ -34,8 +51,14 @@ def create_customer_user(username: str, password: str, customer_id: int) -> None
                 customer_id=customer_id,
             )
         )
-        db.commit()
-        print("Customer user created")
+        try:
+            db.commit()
+        except IntegrityError as e:
+            db.rollback()
+            print(f"Could not create user: {e.orig}")
+            return
+        print(f"Customer user '{username}' created for customer {customer_id}")
+
 
 if __name__ == "__main__":
     main()

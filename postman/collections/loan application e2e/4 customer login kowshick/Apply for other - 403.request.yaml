@@ -1,0 +1,24 @@
+$kind: http-request
+name: "Apply for other - 403"
+url: "{{baseUrl}}/loans/apply"
+method: POST
+headers:
+  - key: Authorization
+    value: "Bearer {{customerToken}}"
+  - key: Content-Type
+    value: "application/json"
+body:
+  type: text
+  content: |-
+    {
+      "customer_id": {{otherId}},
+      "amount": 100000,
+      "tenure_months": 12
+    }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("status 403", () => pm.response.to.have.status(403));
+      pm.test("error FORBIDDEN", () => pm.expect(pm.response.json().error).to.eql("FORBIDDEN"));
+order: 10000

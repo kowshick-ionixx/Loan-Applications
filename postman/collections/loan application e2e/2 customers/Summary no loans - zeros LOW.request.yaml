@@ -1,0 +1,16 @@
+$kind: http-request
+name: "Summary no loans - zeros LOW"
+url: "{{baseUrl}}/customers/{{emptyId}}/summary"
+method: GET
+headers:
+  - key: Authorization
+    value: "Bearer {{officerToken}}"
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test("status 200", () => pm.response.to.have.status(200));
+      const s = pm.response.json();
+      pm.test("zeros", () => { pm.expect(s.total_applications).to.eql(0); pm.expect(Number(s.total_monthly_emi)).to.eql(0); });
+      pm.test("LOW", () => pm.expect(s.risk_band).to.eql("LOW"));
+order: 16000

@@ -10,10 +10,7 @@ def test_docs_page_loads():
     assert response.status_code == 200
 
 
-def test_get_missing_customer_returns_404():
+def test_customer_endpoint_needs_token():
     response = client.get("/customers/9999")
-    assert response.status_code == 404
-    assert response.json() == {
-        "error": "NOT_FOUND",
-        "message": "Customer with id 9999 not found",
-    }
+    assert response.status_code == 401
+    assert response.json()["error"] == "UNAUTHORIZED"
