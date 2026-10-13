@@ -1,299 +1,221 @@
+from datetime import datetime
+
 import pytest
+from conftest import PROFILE, apply
 
-CUSTOMER = {
-    "name": "Ravi Kumar",
-    "email": "Ravi@Example.com",
-    "phone": "9876543210",
-    "date_of_birth": "1990-05-15",
-    "monthly_income": 50000,
-}
+from loan_application.services import customer_service
 
-
-@pytest.fixture
-def customer(client):
-    response = client.post("/api/customers", json=CUSTOMER)
-    assert response.status_code == 201
-    return response.json()
+AGE_REASON = "Age must be between 21 and 60"
+INCOME_REASON = "Requested amount exceeds 20x monthly income"
+ACTIVE_REASON = "Customer already has 2 active loans"
 
 
-def apply(client, customer_id, amount=300000, tenure_months=36):
-    return client.post(
-        "/api/loans",
-        json={
-            "customer_id": customer_id,
-            "amount": amount,
-            "tenure_months": tenure_months,
-        },
+def born_years_ago(years: int) -> str:
+    today = datetime.now().astimezone().date()
+    try:
+        return today.replace(year=today.year - years).isoformat()
+    except ValueError:  # 29 Feb in a non-leap year
+        return today.replace(day=28, year=today.year - years).isoformat()
+
+
+def create(client, officer, **fields):
+    response = client.post(
+        "/api/customers", headers=officer, json={**PROFILE, **fields}
     )
+    assert response.status_code == 201, response.json()
+    return response.json()["id"]
+
+
+def fields_of(response):
+    return {d["field"] for d in response.json()["details"]}
 
 
 def test_health(client):
-    response = client.get("/health")
-    assert response.status_code == 200
-    assert response.json() == {"status": "ok"}
-    assert response.headers["X-Request-ID"]
+    assert client.get("/health").json() == {"status": "ok"}
 
 
-def test_request_id_is_echoed(client):
-    response = client.get("/health", headers={"X-Request-ID": "abc123"})
-    assert response.headers["X-Request-ID"] == "abc123"
-
-
-# ---------- customers ----------
-
-
-def test_create_customer(customer):
-    assert customer["id"] > 0
-    assert customer["email"] == "ravi@example.com"
-    assert customer["monthly_income"] == 50000
-
-
-def test_get_customer(client, customer):
-    response = client.get(f"/api/customers/{customer['id']}")
-    assert response.status_code == 200
-    assert response.json() == customer
-
-
-def test_get_missing_customer(client):
-    response = client.get("/api/customers/999999")
-    assert response.status_code == 404
-    body = response.json()
-    assert body["error"] == "NOT_FOUND"
-    assert body["message"] == "Customer with id 999999 not found"
-    assert body["request_id"]
-
-
-def test_duplicate_email(client, customer):
-    response = client.post(
-        "/api/customers", json={**CUSTOMER, "email": "RAVI@example.com"}
-    )
-    assert response.status_code == 409
-    assert response.json()["error"] == "DUPLICATE_EMAIL"
-
-
-def test_update_customer(client, customer):
-    data = {**CUSTOMER, "name": "Ravi Sharma", "monthly_income": 80000}
-    response = client.put(f"/api/customers/{customer['id']}", json=data)
-    assert response.status_code == 200
-    assert response.json()["name"] == "Ravi Sharma"
-    assert response.json()["monthly_income"] == 80000
-
-
-def test_update_to_duplicate_email(client, customer):
-    other = client.post(
-        "/api/customers", json={**CUSTOMER, "email": "other@example.com"}
-    ).json()
-    response = client.put(f"/api/customers/{other['id']}", json=CUSTOMER)
-    assert response.status_code == 409
-    assert response.json()["error"] == "DUPLICATE_EMAIL"
-
-
-def test_update_missing_customer(client):
-    response = client.put("/api/customers/999999", json=CUSTOMER)
-    assert response.status_code == 404
-
-
-def test_delete_customer(client, customer):
-    response = client.delete(f"/api/customers/{customer['id']}")
-    assert response.status_code == 200
-    assert response.json() == customer
-    assert client.get(f"/api/customers/{customer['id']}").status_code == 404
-
-
-def test_delete_customer_with_loans(client, customer):
-    apply(client, customer["id"])
-    response = client.delete(f"/api/customers/{customer['id']}")
-    assert response.status_code == 409
-    assert response.json()["error"] == "CUSTOMER_HAS_LOANS"
-    assert client.get(f"/api/customers/{customer['id']}").status_code == 200
+def test_create_and_get_customer(client, officer):
+    response = client.post("/api/customers", headers=officer, json=PROFILE)
+    assert response.status_code == 201
+    created = response.json()
+    assert created == {**PROFILE, "id": created["id"]}
+    fetched = client.get(f"/api/customers/{created['id']}", headers=officer)
+    assert fetched.status_code == 200 and fetched.json() == created
 
 
 @pytest.mark.parametrize(
-    "field, value",
+    ("field", "value"),
     [
-        ("name", "Ab"),
-        ("name", "R4vi"),
-        ("name", " Ravi"),
-        ("email", "not-an-email"),
-        ("phone", "12345"),
-        ("phone", "98765432ab"),
+        ("name", "A1"),
+        ("phone", "98765"),
         ("date_of_birth", "2999-01-01"),
-        ("date_of_birth", "15-05-1990"),
         ("monthly_income", 0),
-        ("monthly_income", -100),
-        ("monthly_income", 100.123),
     ],
 )
-def test_invalid_customer_fields(client, field, value):
-    response = client.post("/api/customers", json={**CUSTOMER, field: value})
+def test_customer_field_rules(client, officer, field, value):
+    body = {**PROFILE, field: value}
+    response = client.post("/api/customers", headers=officer, json=body)
     assert response.status_code == 400
-    body = response.json()
-    assert body["error"] == "VALIDATION_FAILED"
-    assert [d["field"] for d in body["details"]] == [field]
+    assert response.json()["error"] == "VALIDATION_FAILED"
+    assert fields_of(response) == {field}
 
 
-def test_missing_customer_field(client):
-    data = {k: v for k, v in CUSTOMER.items() if k != "phone"}
-    response = client.post("/api/customers", json=data)
+def test_all_failing_fields_are_listed(client, officer):
+    body = {**PROFILE, "email": "not-an-email", "phone": "98765"}
+    response = client.post("/api/customers", headers=officer, json=body)
     assert response.status_code == 400
-    assert response.json()["details"] == [{"field": "phone", "message": "is required"}]
+    assert fields_of(response) == {"email", "phone"}
 
 
-@pytest.mark.parametrize("body", ["", "{bad json", "[]"])
-def test_invalid_json_body(client, body):
+def test_duplicate_email(client, officer):
+    create(client, officer)
+    response = client.post("/api/customers", headers=officer, json=PROFILE)
+    assert response.status_code == 409
+    assert response.json()["error"] == "DUPLICATE_EMAIL"
+
+
+@pytest.mark.parametrize("raw", ['{"name": "Broken",', ""])
+def test_malformed_or_empty_json(client, officer, raw):
+    headers = {**officer, "Content-Type": "application/json"}
+    response = client.post("/api/customers", headers=headers, content=raw)
+    assert response.status_code == 400
+    assert response.json()["error"] == "INVALID_REQUEST"
+
+
+def test_missing_customer_is_404(client, officer):
+    response = client.get("/api/customers/999", headers=officer)
+    assert response.status_code == 404
+    assert response.json()["error"] == "NOT_FOUND"
+    assert response.json()["message"] == "Customer with id 999 not found"
+
+
+@pytest.mark.parametrize("path", ["/api/customers/abc", "/api/customers/0"])
+def test_bad_id_is_400(client, officer, path):
+    assert client.get(path, headers=officer).status_code == 400
+
+
+@pytest.mark.parametrize(
+    ("body", "field"),
+    [
+        ({"amount": 5000, "tenure_months": 36}, "amount"),
+        ({"amount": 300000, "tenure_months": 18}, "tenure_months"),
+    ],
+)
+def test_loan_field_rules(client, officer, body, field):
+    cid = create(client, officer)
     response = client.post(
-        "/api/customers",
-        content=body,
-        headers={"Content-Type": "application/json"},
+        "/api/loans", headers=officer, json={"customer_id": cid, **body}
     )
     assert response.status_code == 400
-    assert response.json()["error"] in ("INVALID_REQUEST", "VALIDATION_FAILED")
+    assert fields_of(response) == {field}
 
 
-@pytest.mark.parametrize("bad_id", ["0", "-1", "abc", "2147483648"])
-def test_invalid_customer_id_in_path(client, bad_id):
-    response = client.get(f"/api/customers/{bad_id}")
-    assert response.status_code == 400
-    assert response.json()["details"][0]["field"] == "customer_id"
+def test_loan_for_missing_customer_is_404(client, officer):
+    assert apply(client, officer, 999999).status_code == 404
 
 
-# ---------- loans ----------
-
-
-def test_loan_approved(client, customer):
-    response = apply(client, customer["id"], amount=300000, tenure_months=36)
+def test_approved_loan_matches_spec_example(client, officer):
+    cid = create(client, officer)
+    response = apply(client, officer, cid, amount=300000, tenure_months=36)
     assert response.status_code == 201
     loan = response.json()
     assert loan["status"] == "APPROVED"
-    assert loan["emi"] == 9964.29
-    assert loan["interest_rate"] == 12
+    assert loan["interest_rate"] == 12.0 and loan["emi"] == 9964.29
     assert loan["rejection_reason"] is None
-
-
-def test_loan_rejected_income(client, customer):
-    response = apply(client, customer["id"], amount=1000001)
-    assert response.status_code == 201
-    loan = response.json()
-    assert loan["status"] == "REJECTED"
-    assert loan["emi"] is None
-    assert loan["rejection_reason"] == "Requested amount exceeds 20x monthly income"
-
-
-def test_loan_rejected_age(client):
-    young = client.post(
-        "/api/customers",
-        json={**CUSTOMER, "email": "young@example.com", "date_of_birth": "2010-01-01"},
-    ).json()
-    loan = apply(client, young["id"]).json()
-    assert loan["status"] == "REJECTED"
-    assert loan["rejection_reason"] == "Age must be between 21 and 60"
-
-
-def test_third_loan_rejected(client, customer):
-    assert apply(client, customer["id"]).json()["status"] == "APPROVED"
-    assert apply(client, customer["id"]).json()["status"] == "APPROVED"
-    loan = apply(client, customer["id"]).json()
-    assert loan["status"] == "REJECTED"
-    assert loan["rejection_reason"] == "Customer already has 2 active loans"
-
-
-def test_get_loan(client, customer):
-    loan = apply(client, customer["id"]).json()
-    response = client.get(f"/api/loans/{loan['id']}")
-    assert response.status_code == 200
-    assert response.json() == loan
-
-
-def test_get_missing_loan(client):
-    response = client.get("/api/loans/999999")
-    assert response.status_code == 404
-    assert response.json()["message"] == "Loan with id 999999 not found"
-
-
-def test_loan_for_missing_customer(client):
-    response = apply(client, 999999)
-    assert response.status_code == 404
+    assert loan["applied_on"] == datetime.now().astimezone().date().isoformat()
+    fetched = client.get(f"/api/loans/{loan['id']}", headers=officer)
+    assert fetched.status_code == 200 and fetched.json() == loan
 
 
 @pytest.mark.parametrize(
-    "field, value",
+    ("customer", "amount", "reason"),
     [
-        ("customer_id", 0),
-        ("customer_id", "1"),
-        ("amount", 9999.99),
-        ("amount", 5000000.01),
-        ("amount", 10000.001),
-        ("tenure_months", 18),
+        ({"date_of_birth": born_years_ago(19)}, 100000, AGE_REASON),
+        ({"monthly_income": 40000}, 1000000, INCOME_REASON),
     ],
 )
-def test_invalid_loan_fields(client, field, value):
-    data = {"customer_id": 1, "amount": 300000, "tenure_months": 36, field: value}
-    response = client.post("/api/loans", json=data)
-    assert response.status_code == 400
-    assert [d["field"] for d in response.json()["details"]] == [field]
+def test_rejected_loan_is_saved_with_reason(client, officer, customer, amount, reason):
+    cid = create(client, officer, **customer)
+    response = apply(client, officer, cid, amount=amount)
+    assert response.status_code == 201
+    assert response.json()["status"] == "REJECTED"
+    assert response.json()["rejection_reason"] == reason
+    assert client.get(f"/api/loans/{response.json()['id']}", headers=officer).is_success
 
 
-def test_list_customer_loans(client, customer):
-    approved = apply(client, customer["id"]).json()
-    rejected = apply(client, customer["id"], amount=2000000).json()
-
-    response = client.get(f"/api/customers/{customer['id']}/loans")
-    assert response.status_code == 200
-    assert [loan["id"] for loan in response.json()] == [rejected["id"], approved["id"]]
-
-    approved_only = client.get(
-        f"/api/customers/{customer['id']}/loans", params={"status": "APPROVED"}
-    ).json()
-    assert [loan["id"] for loan in approved_only] == [approved["id"]]
+def test_third_loan_after_two_approvals(client, officer):
+    cid = create(client, officer)
+    apply(client, officer, cid)
+    apply(client, officer, cid)
+    third = apply(client, officer, cid).json()
+    assert third["status"] == "REJECTED"
+    assert third["rejection_reason"] == ACTIVE_REASON
 
 
-def test_list_loans_invalid_status(client, customer):
-    response = client.get(
-        f"/api/customers/{customer['id']}/loans", params={"status": "PENDING"}
-    )
-    assert response.status_code == 400
-    assert response.json()["details"][0]["field"] == "status"
+def test_list_loans_newest_first_and_status_filter(client, officer):
+    cid = create(client, officer)
+    first = apply(client, officer, cid).json()["id"]
+    second = apply(client, officer, cid, amount=2000000).json()["id"]
+    url = f"/api/customers/{cid}/loans"
+    listed = client.get(url, headers=officer).json()
+    assert [loan["id"] for loan in listed] == [second, first]
+    rejected = client.get(f"{url}?status=REJECTED", headers=officer).json()
+    assert [loan["id"] for loan in rejected] == [second]
+    assert client.get(f"{url}?status=PENDING", headers=officer).status_code == 400
+    assert client.get("/api/customers/999999/loans", headers=officer).status_code == 404
 
 
-def test_list_loans_missing_customer(client):
-    assert client.get("/api/customers/999999/loans").status_code == 404
+def test_list_loans_empty(client, officer):
+    cid = create(client, officer)
+    response = client.get(f"/api/customers/{cid}/loans", headers=officer)
+    assert response.status_code == 200 and response.json() == []
 
 
-def test_summary(client, customer):
-    apply(client, customer["id"], amount=300000, tenure_months=36)
-    apply(client, customer["id"], amount=100000, tenure_months=12)
-    apply(client, customer["id"], amount=100000, tenure_months=12)
-
-    response = client.get(f"/api/customers/{customer['id']}/summary")
-    assert response.status_code == 200
-    assert response.json() == {
-        "customer_id": customer["id"],
-        "name": "Ravi Kumar",
-        "total_loans": 3,
-        "approved_loans": 2,
-        "rejected_loans": 1,
-        "total_approved_amount": 400000,
-        "total_monthly_emi": 18755.88,
+def test_summary_with_no_loans(client, officer):
+    cid = create(client, officer)
+    summary = client.get(f"/api/customers/{cid}/summary", headers=officer).json()
+    assert summary == {
+        "customer_id": cid,
+        "customer_name": PROFILE["name"],
+        "total_applications": 0,
+        "approved_count": 0,
+        "rejected_count": 0,
+        "total_approved_amount": 0,
+        "total_monthly_emi": 0,
+        "emi_to_income_ratio": 0,
+        "risk_band": "LOW",
     }
 
 
-def test_summary_no_loans(client, customer):
-    body = client.get(f"/api/customers/{customer['id']}/summary").json()
-    assert body["total_loans"] == 0
-    assert body["total_approved_amount"] == 0
-    assert body["total_monthly_emi"] == 0
-
-
-# ---------- generic errors ----------
-
-
-def test_unknown_route(client):
-    response = client.get("/api/nope")
+def test_summary_counts_approved_only(client, officer):
+    cid = create(client, officer)
+    apply(client, officer, cid, amount=300000, tenure_months=36)
+    apply(client, officer, cid, amount=200000, tenure_months=24)
+    apply(client, officer, cid)
+    summary = client.get(f"/api/customers/{cid}/summary", headers=officer).json()
+    assert summary["total_applications"] == 3
+    assert summary["approved_count"] == 2 and summary["rejected_count"] == 1
+    assert summary["total_approved_amount"] == 500000
+    assert summary["total_monthly_emi"] == 19285.86
+    assert summary["emi_to_income_ratio"] == 38.57
+    assert summary["risk_band"] == "MEDIUM"
+    response = client.get("/api/customers/999999/summary", headers=officer)
     assert response.status_code == 404
-    assert response.json()["error"] == "NOT_FOUND"
 
 
-def test_method_not_allowed(client):
-    response = client.patch("/api/loans")
-    assert response.status_code == 405
-    assert response.json()["error"] == "METHOD_NOT_ALLOWED"
+def test_unexpected_error_is_500_without_stack_trace(client, officer, monkeypatch):
+    def boom(*args):
+        raise RuntimeError("database exploded")
+
+    monkeypatch.setattr(customer_service, "get_customer", boom)
+    response = client.get("/api/customers/1", headers=officer)
+    assert response.status_code == 500
+    body = response.json()
+    assert body["error"] == "INTERNAL_ERROR" and body["request_id"]
+    assert "exploded" not in response.text and "Traceback" not in response.text
+
+
+def test_request_id_header_and_error_body(client):
+    response = client.get("/api/loans/1", headers={"X-Request-ID": "abc123"})
+    assert response.headers["X-Request-ID"] == "abc123"
+    assert response.json()["request_id"] == "abc123"

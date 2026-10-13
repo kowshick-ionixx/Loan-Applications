@@ -1,11 +1,12 @@
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from loan_application.models import Loan
+from loan_application.models import APPROVED, Loan
 
 
 def add(db: Session, loan: Loan) -> None:
     db.add(loan)
+    db.flush()
 
 
 def get_by_id(db: Session, loan_id: int) -> Loan | None:
@@ -14,7 +15,7 @@ def get_by_id(db: Session, loan_id: int) -> Loan | None:
 
 def count_approved_for_customer(db: Session, customer_id: int) -> int:
     stmt = select(func.count()).where(
-        Loan.customer_id == customer_id, Loan.status == "APPROVED"
+        Loan.customer_id == customer_id, Loan.status == APPROVED
     )
     return db.execute(stmt).scalar_one()
 

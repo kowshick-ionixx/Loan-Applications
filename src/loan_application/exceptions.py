@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Mapping
 from http import HTTPStatus
 
 from fastapi import Request
@@ -21,6 +22,8 @@ FIELD_MESSAGES = {
     "amount": "must be between 10000 and 5000000, max 2 decimals",
     "tenure_months": "must be one of 12, 24, 36, 48, 60",
     "status": "must be APPROVED or REJECTED",
+    "username": "must be 3-50 characters: letters, digits, _ . or @",
+    "password": "must be at least 8 characters",
 }
 
 
@@ -31,7 +34,50 @@ class AppError(Exception):
         self.message = message
 
 
-def error_response(status_code: int, content: dict, headers=None) -> JSONResponse:
+class UnauthorizedError(AppError):
+    def __init__(self, message: str = "Could not validate credentials") -> None:
+        super().__init__(401, "UNAUTHORIZED", message)
+
+
+class InvalidCredentialsError(AppError):
+    def __init__(self, message: str = "Invalid username or password") -> None:
+        super().__init__(401, "INVALID_CREDENTIALS", message)
+
+
+class ForbiddenError(AppError):
+    def __init__(
+        self, message: str = "You do not have permission to perform this action"
+    ) -> None:
+        super().__init__(403, "FORBIDDEN", message)
+
+
+class ProfileRequiredError(AppError):
+    def __init__(self) -> None:
+        message = "Create your customer profile via POST /api/customers first"
+        super().__init__(403, "CUSTOMER_PROFILE_REQUIRED", message)
+
+
+class ProfileExistsError(AppError):
+    def __init__(self) -> None:
+        message = "You already have a customer profile"
+        super().__init__(409, "PROFILE_ALREADY_EXISTS", message)
+
+
+class DuplicateUsernameError(AppError):
+    def __init__(self, username: str) -> None:
+        message = f"Username '{username}' already exists"
+        super().__init__(409, "DUPLICATE_USERNAME", message)
+
+
+def field_message(error: dict) -> str:
+    if error["type"] == "missing":
+        return "is required"
+    return FIELD_MESSAGES.get(str(error["loc"][-1]), str(error["msg"]))
+
+
+def error_response(
+    status_code: int, content: dict, headers: Mapping[str, str] | None = None
+) -> JSONResponse:
     content["request_id"] = request_id_var.get()
     return JSONResponse(status_code=status_code, content=content, headers=headers)
 
@@ -39,7 +85,10 @@ def error_response(status_code: int, content: dict, headers=None) -> JSONRespons
 async def app_error_handler(request: Request, exc: Exception) -> JSONResponse:
     assert isinstance(exc, AppError)
     logger.warning("%s: %s", exc.error, exc.message)
-    return error_response(exc.status_code, {"error": exc.error, "message": exc.message})
+    headers = {"WWW-Authenticate": "Bearer"} if exc.status_code == 401 else None
+    return error_response(
+        exc.status_code, {"error": exc.error, "message": exc.message}, headers
+    )
 
 
 async def http_error_handler(request: Request, exc: Exception) -> JSONResponse:
@@ -59,15 +108,7 @@ async def validation_error_handler(request: Request, exc: Exception) -> JSONResp
         return error_response(400, {"error": "INVALID_REQUEST", "message": message})
 
     details = [
-        {
-            "field": str(e["loc"][-1]),
-            "message": (
-                "is required"
-                if e["type"] == "missing"
-                else FIELD_MESSAGES.get(str(e["loc"][-1]), e["msg"])
-            ),
-        }
-        for e in errors
+        {"field": str(e["loc"][-1]), "message": field_message(e)} for e in errors
     ]
     logger.warning("Validation failed: %s", ", ".join(d["field"] for d in details))
     return error_response(400, {"error": "VALIDATION_FAILED", "details": details})

@@ -1,10 +1,21 @@
 from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Numeric, String, func
+from sqlalchemy import (
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Numeric,
+    String,
+    func,
+    true,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from loan_application.db import Base
+
+APPROVED = "APPROVED"
+REJECTED = "REJECTED"
 
 
 class Customer(Base):
@@ -46,7 +57,8 @@ class Loan(Base):
         ),
         CheckConstraint("emi IS NULL OR emi >= 0", name="ck_loans_emi_non_negative"),
         CheckConstraint(
-            "(status = 'APPROVED' AND rejection_reason IS NULL AND emi IS NOT NULL AND interest_rate IS NOT NULL)"
+            "(status = 'APPROVED' AND rejection_reason IS NULL"
+            " AND emi IS NOT NULL AND interest_rate IS NOT NULL)"
             " OR (status = 'REJECTED' AND rejection_reason IS NOT NULL)",
             name="ck_loans_status_consistency",
         ),
@@ -61,3 +73,33 @@ class Loan(Base):
     status: Mapped[str] = mapped_column(String(10))
     rejection_reason: Mapped[str | None] = mapped_column(String(255))
     applied_on: Mapped[date] = mapped_column(server_default=func.current_date())
+
+
+class UserRole:
+    OFFICER = "OFFICER"
+    CUSTOMER = "CUSTOMER"
+
+
+class User(Base):
+    __tablename__ = "users"
+    __table_args__ = (
+        CheckConstraint(
+            "role IN ('OFFICER', 'CUSTOMER')", name="ck_users_role_allowed"
+        ),
+        CheckConstraint(
+            "role = 'CUSTOMER' OR customer_id IS NULL",
+            name="ck_users_customer_link",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    username: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    password_hash: Mapped[str] = mapped_column(String(255))
+    role: Mapped[str] = mapped_column(String(10))
+    customer_id: Mapped[int | None] = mapped_column(
+        ForeignKey("customers.id", ondelete="SET NULL"), unique=True
+    )
+    is_active: Mapped[bool] = mapped_column(server_default=true())
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )

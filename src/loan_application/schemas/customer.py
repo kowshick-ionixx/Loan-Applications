@@ -1,8 +1,10 @@
 from datetime import date
 from decimal import Decimal
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import AfterValidator, BaseModel, ConfigDict, EmailStr, Field, PastDate
+
+RiskBand = Literal["LOW", "MEDIUM", "HIGH"]
 
 
 class CustomerCreate(BaseModel):
@@ -26,9 +28,11 @@ class CustomerOut(BaseModel):
 
 class CustomerSummary(BaseModel):
     customer_id: int
-    name: str
-    total_loans: int
-    approved_loans: int
-    rejected_loans: int
+    customer_name: str
+    total_applications: int
+    approved_count: int
+    rejected_count: int
     total_approved_amount: float
     total_monthly_emi: float
+    emi_to_income_ratio: float
+    risk_band: RiskBand
