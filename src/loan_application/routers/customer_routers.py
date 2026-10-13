@@ -8,13 +8,13 @@ from loan_application.schemas.customer_schemas import (
     CustomerSummaryOut,
     MessageOut,
 )
-from loan_application.dependencies.auth import get_current_user, require_roles
+from loan_application.dependencies.auth import get_current_user, require_roles,authenticated_user
 from loan_application.services import customer_services, loan_services
 from loan_application.services.access import ensure_can_access_customer
 from loan_application.schemas.loan_schemas import LoanOut
 from loan_application.tables import User, UserRole
 
-router = APIRouter(prefix="/customers", tags=["Customers"],  dependencies=[Depends(get_current_user)],)
+router = APIRouter(prefix="/customers", tags=["Customers"],  dependencies=[Depends(authenticated_user)],)
 officer_only = [Depends(require_roles(UserRole.OFFICER))]
 
 

@@ -1,12 +1,12 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
-from loan_application.dependencies.auth import get_current_user,require_roles
+from loan_application.dependencies.auth import get_current_user,require_roles,authenticated_user
 from loan_application.db import get_db
 from loan_application.schemas.loan_schemas import LoanApplyIn, LoanOut, messageOut
 from loan_application.services import loan_services
 from loan_application.services.access import ensure_can_access_customer
 from loan_application.tables import User, UserRole
-router = APIRouter(prefix="/loans", tags=["Loans"],dependencies=[Depends(get_current_user)],)
+router = APIRouter(prefix="/loans", tags=["Loans"],dependencies=[Depends(authenticated_user)],)
 
 
 
@@ -27,7 +27,7 @@ def get_loan(
     user: User = Depends(get_current_user),
     ):
     loan = loan_services.get_loan(db, loan_id)
-    ensure_can_access_customer(user, loan_id)
+    ensure_can_access_customer(user, loan.customer_id)
     return loan
 
 

@@ -6,7 +6,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from loan_application.routers import auth_routers
-
+from loan_application.logging_context import setup_logging
 
 from loan_application.db import get_db
 from loan_application.exceptions import ConflictError, InvalidInputError, NotFoundError
@@ -14,7 +14,7 @@ from loan_application.routers.customer_routers import router as customers_router
 from loan_application.routers.loan_routers import (
     router as loans_router,  # replace the first one so changed name
 )
-
+setup_logging()
 app = FastAPI(title="Loan Application Service")
 app.include_router(loans_router)
 app.include_router(customers_router)
