@@ -22,7 +22,8 @@ from sqlalchemy.orm import Session
 from alembic import command
 from loan_application.db import engine, get_db
 from loan_application.main import app
-from loan_application.models import User
+from loan_application.models import Customer, User
+from loan_application.schemas.customer import CustomerCreate
 from loan_application.security import hash_password
 
 PASSWORD = "Password@123"
@@ -64,6 +65,22 @@ def client(db):
     app.dependency_overrides.clear()
 
 
+def create(client, officer, **fields):
+    response = client.post(
+        "/api/customers", headers=officer, json={**PROFILE, **fields}
+    )
+    assert response.status_code == 201, response.json()
+    return response.json()["id"]
+
+
+def fields_of(response):
+    return {d["field"] for d in response.json()["details"]}
+
+
+def error_of(response):
+    return response.json()["error"]
+
+
 def login(client, username, password=PASSWORD):
     form = {"username": username, "password": password}
     response = client.post("/auth/login", data=form)
@@ -71,8 +88,9 @@ def login(client, username, password=PASSWORD):
     return {"Authorization": f"Bearer {response.json()['access_token']}"}
 
 
-def register(client, username, password=PASSWORD):
-    body = {"username": username, "password": password}
+def register(client, username, password=PASSWORD, **extra):
+    """Register a CUSTOMER login; it has no profile until POST /api/customers."""
+    body = {**extra, "username": username, "password": password}
     return client.post("/auth/register", json=body)
 
 
@@ -95,19 +113,44 @@ def officer(client, db):
 
 
 @pytest.fixture
-def signup(client):
-    """Register, log in and create the profile, like a real customer would."""
+def signup(client, db):
+    """A customer profile with a linked CUSTOMER login, the way
+    scripts/seed.py create_customer_user() makes one; then log in."""
 
     def _signup(email="meena@example.com", **profile):
         username = email.split("@")[0]
-        assert register(client, username).status_code == 201
-        headers = login(client, username)
-        body = {**PROFILE, "email": email, **profile}
-        response = client.post("/api/customers", headers=headers, json=body)
-        assert response.status_code == 201, response.json()
-        return headers, response.json()["id"]
+        data = CustomerCreate.model_validate({**PROFILE, "email": email, **profile})
+        customer = Customer(**data.model_dump())
+        db.add(customer)
+        db.flush()
+        db.add(
+            User(
+                username=username,
+                password_hash=hash_password(PASSWORD),
+                role="CUSTOMER",
+                customer_id=customer.id,
+            )
+        )
+        db.flush()
+        return login(client, username), customer.id
 
     return _signup
+
+
+@pytest.fixture
+def profileless(client, db):
+    """A CUSTOMER login without a profile (e.g. after their profile was deleted)."""
+    db.add(
+        User(
+            username="noprofile", password_hash=hash_password(PASSWORD), role="CUSTOMER"
+        )
+    )
+    db.flush()
+    return login(client, "noprofile")
+
+
+# Marks tests of EXTRA APIs that are commented out in the routers.
+EXTRA = pytest.mark.skip(reason="EXTRA API is commented out")
 
 
 def pytest_report_teststatus(report):

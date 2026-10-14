@@ -35,6 +35,7 @@ class Customer(Base):
     phone: Mapped[str] = mapped_column(String(10))
     date_of_birth: Mapped[date]
     monthly_income: Mapped[Decimal] = mapped_column(Numeric(12, 2))
+    address: Mapped[str | None] = mapped_column(String(255))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

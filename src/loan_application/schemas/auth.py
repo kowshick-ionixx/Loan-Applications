@@ -1,31 +1,20 @@
 from typing import Annotated
 
-from pydantic import AfterValidator, BaseModel, ConfigDict, Field, computed_field
+from pydantic import AfterValidator, BaseModel, Field
 
 Username = Annotated[
     str,
     Field(min_length=3, max_length=50, pattern=r"^[A-Za-z0-9_.@]+$"),
     AfterValidator(str.lower),
 ]
+Password = Annotated[str, Field(min_length=8, max_length=128)]
 
 
 class RegisterRequest(BaseModel):
+    """Only the login; the customer profile is created with POST /api/customers."""
+
     username: Username
-    password: str = Field(min_length=8, max_length=128)
-
-
-class RegisterResponse(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: int
-    username: str
-    role: str
-    customer_id: int | None
-
-    @computed_field
-    @property
-    def has_customer_profile(self) -> bool:
-        return self.customer_id is not None
+    password: Password
 
 
 class TokenResponse(BaseModel):

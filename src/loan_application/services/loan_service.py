@@ -4,8 +4,9 @@ from decimal import ROUND_HALF_UP, Decimal
 
 from sqlalchemy.orm import Session
 
+from loan_application.db import transaction
 from loan_application.exceptions import AppError
-from loan_application.models import APPROVED, REJECTED, Customer, Loan, User
+from loan_application.models import APPROVED, REJECTED, Customer, Loan, User, UserRole
 from loan_application.repositories import loan_repository
 from loan_application.schemas.customer import CustomerSummary, RiskBand
 from loan_application.schemas.loan import LoanCreate
@@ -81,8 +82,9 @@ def apply_for_loan(db: Session, data: LoanCreate, user: User) -> Loan:
         rejection_reason=reason,
         applied_on=today,
     )
-    loan_repository.add(db, loan)
-    db.commit()
+    # The customer could be deleted between the lookup and the insert.
+    with transaction(db, "CUSTOMER_REMOVED", f"Customer {customer.id} was removed"):
+        loan_repository.add(db, loan)
     logger.info("Loan %s %s for customer %s", loan.id, loan.status, customer.id)
     return loan
 
@@ -93,6 +95,19 @@ def get_loan(db: Session, loan_id: int, user: User) -> Loan:
     if loan is None:
         raise AppError(404, "NOT_FOUND", f"Loan with id {loan_id} not found")
     return loan
+
+
+def list_loans(db: Session, status: str | None, user: User) -> list[Loan]:
+    if user.role == UserRole.CUSTOMER:
+        return loan_repository.list_for_customer(db, user.customer_id, status)
+    return loan_repository.list_all(db, status)
+
+
+def delete_loan(db: Session, loan_id: int, user: User) -> None:
+    loan = get_loan(db, loan_id, user)
+    loan_repository.delete(db, loan)
+    db.commit()
+    logger.info("Loan %s deleted", loan_id)
 
 
 def list_customer_loans(
