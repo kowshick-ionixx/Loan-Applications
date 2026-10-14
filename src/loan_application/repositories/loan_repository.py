@@ -1,3 +1,4 @@
+from sqlalchemy import delete as sql_delete
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -25,3 +26,22 @@ def list_for_customer(db: Session, customer_id: int, status: str | None) -> list
     if status:
         stmt = stmt.where(Loan.status == status)
     return list(db.scalars(stmt.order_by(Loan.id.desc())))
+
+
+def list_all(db: Session, status: str | None) -> list[Loan]:
+    stmt = select(Loan)
+    if status:
+        stmt = stmt.where(Loan.status == status)
+    return list(db.scalars(stmt.order_by(Loan.id.desc())))
+
+
+def delete_inactive_for_customer(db: Session, customer_id: int) -> None:
+    stmt = sql_delete(Loan).where(
+        Loan.customer_id == customer_id, Loan.status != APPROVED
+    )
+    db.execute(stmt)
+
+
+def delete(db: Session, loan: Loan) -> None:
+    db.delete(loan)
+    db.flush()

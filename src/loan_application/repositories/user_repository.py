@@ -15,3 +15,7 @@ def get_by_id(db: Session, user_id: int) -> User | None:
 
 def get_by_username(db: Session, username: str) -> User | None:
     return db.scalar(select(User).where(User.username == username))
+
+
+def list_all(db: Session) -> list[User]:
+    return list(db.scalars(select(User).order_by(User.id)))

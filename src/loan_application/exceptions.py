@@ -24,6 +24,13 @@ FIELD_MESSAGES = {
     "status": "must be APPROVED or REJECTED",
     "username": "must be 3-50 characters: letters, digits, _ . or @",
     "password": "must be at least 8 characters",
+    "new_password": "must be at least 8 characters",
+    "old_password": "is required",
+    "address": "must be 1-255 characters",
+    "role": "must be OFFICER or CUSTOMER",
+    "user_id": "must be a positive integer",
+    "page": "must be a positive integer",
+    "size": "must be between 1 and 100",
 }
 
 
@@ -53,14 +60,16 @@ class ForbiddenError(AppError):
 
 class ProfileRequiredError(AppError):
     def __init__(self) -> None:
-        message = "Create your customer profile via POST /api/customers first"
+        message = (
+            "Your account has no customer profile; create it with POST /api/customers"
+        )
         super().__init__(403, "CUSTOMER_PROFILE_REQUIRED", message)
 
 
-class ProfileExistsError(AppError):
-    def __init__(self) -> None:
-        message = "You already have a customer profile"
-        super().__init__(409, "PROFILE_ALREADY_EXISTS", message)
+class NotFoundError(AppError):
+    def __init__(self, resource: str, resource_id: int) -> None:
+        message = f"{resource} with id {resource_id} not found"
+        super().__init__(404, "NOT_FOUND", message)
 
 
 class DuplicateUsernameError(AppError):
