@@ -42,8 +42,9 @@ USER app
 
 EXPOSE 8000
 
+# The X-Health-Probe header tells main.py not to log these automatic checks.
 HEALTHCHECK --interval=10s --timeout=3s --start-period=20s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=2)"
+    CMD python -c "import urllib.request as u; u.urlopen(u.Request('http://localhost:8000/health', headers={'X-Health-Probe': 'docker'}), timeout=2)"
 
 # No secrets here: DATABASE_URL, JWT_SECRET_KEY etc. come from the environment
 # (docker compose passes them from .env).

@@ -85,13 +85,17 @@ async def request_context(
         response = error_response(500, {"error": "INTERNAL_ERROR", "message": message})
     ms = (time.perf_counter() - start) * 1000
     user_id_var.set(getattr(request.state, "user_id", None))
-    logger.info(
-        "%s %s -> %s (%.1f ms)",
-        request.method,
-        request.url.path,
-        coloured_status(response.status_code, settings.log_format),
-        ms,
-    )
+    # Docker's healthcheck (see Dockerfile) calls /health every 10 s; a passing
+    # check is not logged, so the log only shows real traffic and failures.
+    probe = "X-Health-Probe" in request.headers and response.status_code < 400
+    if not probe:
+        logger.info(
+            "%s %s -> %s (%.1f ms)",
+            request.method,
+            request.url.path,
+            coloured_status(response.status_code, settings.log_format),
+            ms,
+        )
     response.headers["X-Request-ID"] = request_id
     request_id_var.reset(token)
     return response

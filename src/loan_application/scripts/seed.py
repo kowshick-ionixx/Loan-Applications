@@ -1,5 +1,7 @@
 import getpass
 
+from sqlalchemy.exc import IntegrityError
+
 from loan_application.config import settings
 from loan_application.db import SessionLocal
 from loan_application.exceptions import AppError
@@ -24,6 +26,29 @@ def create_customer_user(
             print(f"Could not create user: {e.message}")
             return
         print(f"CUSTOMER user '{user.username}' created (id={user.id})")
+
+
+def link_customer_user(username: str, customer_id: int) -> None:
+    """Link an existing CUSTOMER login (e.g. from POST /auth/register) to a
+    profile an officer created, so the login can reach that profile."""
+    with SessionLocal() as db:
+        user = user_repository.get_by_username(db, username.lower())
+        if user is None or user.role != UserRole.CUSTOMER:
+            print(f"CUSTOMER user '{username}' not found")
+            return
+        if user.customer_id is not None:
+            print(f"User '{user.username}' is already linked to {user.customer_id}")
+            return
+        if db.get(Customer, customer_id) is None:
+            print(f"Customer with id {customer_id} not found - create it first")
+            return
+        user.customer_id = customer_id
+        try:
+            db.commit()
+        except IntegrityError:
+            print(f"Customer {customer_id} is already linked to another login")
+            return
+        print(f"User '{user.username}' linked to customer {customer_id}")
 
 
 def create_or_reset_officer(username: str, password: str) -> None:
