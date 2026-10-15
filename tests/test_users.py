@@ -19,8 +19,13 @@ from conftest import (
 from loan_application.config import settings
 from loan_application.db import SessionLocal
 from loan_application.logging_config import JsonFormatter, LogContextFilter
-from loan_application.models import User
-from loan_application.scripts.seed import create_customer_user, create_or_reset_officer
+from loan_application.models import Customer, User
+from loan_application.schemas.customer import CustomerCreate
+from loan_application.scripts.seed import (
+    create_customer_user,
+    create_or_reset_officer,
+    link_customer_user,
+)
 from loan_application.security import verify_password
 
 
@@ -150,6 +155,14 @@ def test_user_id_is_in_log_context(client, db, officer, caplog):
     client.get("/health")
     anonymous = [r for r in caplog.records if "GET /health" in r.getMessage()]
     assert anonymous and anonymous[-1].user_id == "-"
+
+
+def test_docker_health_probe_is_not_logged(client, caplog):
+    caplog.set_level(logging.INFO)
+    client.get("/health", headers={"X-Health-Probe": "docker"})
+    assert not [r for r in caplog.records if "GET /health" in r.getMessage()]
+    client.get("/health")
+    assert [r for r in caplog.records if "GET /health" in r.getMessage()]
 
 
 LOAN = {"customer_id": 1, "amount": 100000, "tenure_months": 12}
@@ -349,6 +362,39 @@ def test_customer_user_needs_existing_customer(cleanup, capsys):
 
     create_customer_user("seed_customer", PASSWORD)
     assert existing_user("seed_customer").customer_id is None
+
+
+@pytest.fixture
+def unlinked_customer():
+    with SessionLocal() as db:
+        data = CustomerCreate.model_validate({**PROFILE, "email": "link@example.com"})
+        customer = Customer(**data.model_dump())
+        db.add(customer)
+        db.commit()
+        customer_id = customer.id
+    yield customer_id
+    with SessionLocal() as db:
+        db.query(User).filter_by(username="seed_customer").delete()
+        db.query(Customer).filter_by(id=customer_id).delete()
+        db.commit()
+
+
+def test_link_customer_user(unlinked_customer, client, capsys):
+    link_customer_user("seed_customer", unlinked_customer)
+    assert "not found" in capsys.readouterr().out
+
+    create_customer_user("seed_customer", PASSWORD)
+    link_customer_user("seed_customer", 999999)
+    assert "not found" in capsys.readouterr().out
+
+    link_customer_user("SEED_CUSTOMER", unlinked_customer)
+    assert existing_user("seed_customer").customer_id == unlinked_customer
+    headers = login(client, "seed_customer")
+    response = client.get(f"/api/customers/{unlinked_customer}", headers=headers)
+    assert response.status_code == 200
+
+    link_customer_user("seed_customer", unlinked_customer)
+    assert "already linked" in capsys.readouterr().out
 
 
 def user_id(db, username):

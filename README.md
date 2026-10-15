@@ -485,6 +485,12 @@ New packages: `pwdlib[argon2]` (password hashing), `pyjwt` (tokens), `pydantic-s
    uv run python -c "from loan_application.scripts.seed import create_customer_user; create_customer_user('meena', 'Secret@123', customer_id=1)"
    ```
 
+   If the customer already registered a login (`POST /auth/register`) and an officer then created their profile, the two are **not linked**: the login gets 403 `CUSTOMER_PROFILE_REQUIRED`, and creating the profile again gives 409 `DUPLICATE_EMAIL`. Link them from the terminal (with Docker: `docker compose exec api python -c "..."`):
+
+   ```powershell
+   uv run python -c "from loan_application.scripts.seed import link_customer_user; link_customer_user('kamal', 144)"
+   ```
+
 The table below includes the EXTRA endpoints for reference; they answer 404 while commented out.
 
 ### Who can do what
