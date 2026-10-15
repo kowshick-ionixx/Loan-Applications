@@ -1,14 +1,40 @@
+# docker compose up --build   -> postgres + api (migrations run on start)
+# Values come from .env (copy .env.example); compose stops with an error if a
+# required one is missing. No secret is written in this file.
 services:
   db:
     image: postgres:16
     environment:
       POSTGRES_USER: kowshick
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
       POSTGRES_DB: app_db
     ports:
       - "5433:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+      - ./docker/initdb:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kowshick -d app_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      # Inside compose the database is the "db" service on 5432, not localhost:5433.
+      DATABASE_URL: postgresql+psycopg://kowshick:${POSTGRES_PASSWORD}@db:5432/app_db
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?set JWT_SECRET_KEY in .env}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
+      SEED_OFFICER_PASSWORD: ${SEED_OFFICER_PASSWORD:-}
+      LOG_FORMAT: ${LOG_FORMAT:-text}
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
 
 volumes:
   pgdata:
