@@ -25,7 +25,8 @@ This guide explains everything done in this project, in the order it was built, 
 15. [Git and GitHub](#part-15-git-and-github)
 16. [README](#part-16-readme)
 17. [Week 2 Monday - Authentication and roles](#part-17-week-2-monday---authentication-and-roles)
-18. [Daily cheat sheet](#daily-cheat-sheet)
+18. [Week 2 Wednesday - Docker and CI](#part-18-week-2-wednesday---docker-and-ci)
+19. [Daily cheat sheet](#daily-cheat-sheet)
 
 ---
 
@@ -536,10 +537,70 @@ The table below includes the EXTRA endpoints for reference; they answer 404 whil
 
 ---
 
+## Part 18: Week 2 Wednesday - Docker and CI
+
+### Run everything with one command (clean clone)
+
+```powershell
+git clone https://github.com/kowshick-ionixx/Loan-Applications.git
+cd Loan-Applications
+copy .env.example .env        # then fill in the placeholders (see Part 17)
+docker compose up --build -d
+```
+
+That starts two containers:
+
+| Service | What it does |
+|---|---|
+| `db` | PostgreSQL 16 on `localhost:5433`. A healthcheck (`pg_isready`) tells compose when it is ready. On a **new** volume, `docker/initdb/create-test-db.sql` also creates `app_db_test` for pytest. |
+| `api` | Waits until `db` is healthy, then `docker/entrypoint.sh` runs `alembic upgrade head`, seeds `officer1` if `SEED_OFFICER_PASSWORD` is set, and starts uvicorn on `http://localhost:8000`. |
+
+```powershell
+docker compose ps             # both should say (healthy)
+docker compose logs -f api    # follow the api logs
+docker compose down           # stop (data kept); add -v to also delete the data
+```
+
+Developing locally is unchanged: `docker compose up -d db` starts only the database, and `uv run fastapi dev src/loan_application/main.py` runs the app on your machine.
+
+### The image (`Dockerfile`)
+
+- Two stages: `build` installs the locked packages with `uv sync --locked --no-dev`; `runtime` copies only the finished `.venv`, so uv and its cache are not in the final image.
+- Dependencies are installed before the source is copied, so changing code does not reinstall packages.
+- Runs as a normal user (`app`), not root, and has a `HEALTHCHECK` on `/health`.
+- `.dockerignore` keeps `.env`, `.git`, `.venv` and the tests out of the image.
+
+### Secrets only via environment
+
+- `config.py` (pydantic-settings) reads every setting from environment variables; `.env` is only a local convenience and is git-ignored and docker-ignored.
+- `docker-compose.yml` has no secret in it: it passes `POSTGRES_PASSWORD`, `JWT_SECRET_KEY` and `SEED_OFFICER_PASSWORD` from `.env`, and stops with an error such as `set JWT_SECRET_KEY in .env` if a required one is missing.
+- Inside compose, `DATABASE_URL` points at `db:5432` (the service name), not `localhost:5433`.
+- CI generates a fresh random `JWT_SECRET_KEY` for every run; its database is a throwaway service container.
+
+### CI (`.github/workflows/ci.yml`)
+
+Runs on every pull request and every push to `main`:
+
+| Job | Steps |
+|---|---|
+| Lint | `uv sync --locked`, `ruff check .`, `black --check .` |
+| Tests | PostgreSQL 16 service with `app_db_test`, then `pytest --cov=loan_application --cov-fail-under=80` (fails under 80% coverage) |
+| Docker | `docker build .` so a broken Dockerfile fails the PR |
+
+Run the same checks locally before pushing:
+
+```powershell
+uv run ruff check .
+uv run black --check .
+uv run pytest --cov=loan_application --cov-fail-under=80
+```
+
+---
+
 ## Daily cheat sheet
 
 ```powershell
-docker compose up -d                              # 1. start the database
+docker compose up -d db                           # 1. start the database (or: docker compose up --build -d for db + api)
 uv run fastapi dev src/loan_application/main.py   # 2. start the app
 uv run pytest -v                                  # 3. run the tests
 uv run ruff check .                               # 4. check the code
