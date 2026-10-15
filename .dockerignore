@@ -1,0 +1,14 @@
+# Keep the build context small and keep secrets out of the image.
+.env
+.git
+.github
+.venv
+**/__pycache__
+*.py[oc]
+.pytest_cache
+.ruff_cache
+.coverage
+htmlcov
+reports
+tests
+postman
