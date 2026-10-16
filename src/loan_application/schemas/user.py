@@ -2,8 +2,6 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, computed_field
 
-from loan_application.schemas.auth import Password
-
 Role = Literal["OFFICER", "CUSTOMER"]
 
 
@@ -20,12 +18,3 @@ class UserOut(BaseModel):
     @property
     def has_customer_profile(self) -> bool:
         return self.customer_id is not None
-
-
-class RoleUpdate(BaseModel):
-    role: Role
-
-
-class PasswordChange(BaseModel):
-    old_password: str
-    new_password: Password

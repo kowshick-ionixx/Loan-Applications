@@ -6,7 +6,6 @@ from sqlalchemy.engine import make_url
 
 from loan_application.config import settings
 
-# Point the app at the test database BEFORE db.py creates its engine.
 TEST_DATABASE_URL = os.environ.get("TEST_DATABASE_URL") or make_url(
     settings.database_url
 ).set(database="app_db_test").render_as_string(hide_password=False)
@@ -47,7 +46,6 @@ def migrated_database():
 
 @pytest.fixture
 def db():
-    # Each test runs inside a transaction that is rolled back afterwards.
     connection = engine.connect()
     transaction = connection.begin()
     session = Session(bind=connection, join_transaction_mode="create_savepoint")
@@ -108,7 +106,7 @@ def officer(client, db):
     db.add(
         User(username="officer1", password_hash=hash_password(PASSWORD), role="OFFICER")
     )
-    db.flush()
+    db.commit()
     return login(client, "officer1")
 
 
@@ -131,7 +129,7 @@ def signup(client, db):
                 customer_id=customer.id,
             )
         )
-        db.flush()
+        db.commit()
         return login(client, username), customer.id
 
     return _signup
@@ -145,16 +143,11 @@ def profileless(client, db):
             username="noprofile", password_hash=hash_password(PASSWORD), role="CUSTOMER"
         )
     )
-    db.flush()
+    db.commit()
     return login(client, "noprofile")
 
 
-# Marks tests of EXTRA APIs that are commented out in the routers.
-EXTRA = pytest.mark.skip(reason="EXTRA API is commented out")
-
-
 def pytest_report_teststatus(report):
-    # One plain word per test: PASS in green, FAIL in red.
     if report.when == "call" and report.passed:
         return "passed", ".", ("PASS", {"green": True})
     if report.failed:

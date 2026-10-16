@@ -1,4 +1,4 @@
-"""Auth, users, tokens, errors on every endpoint, logging and seeding."""
+"""Auth, tokens, errors on every endpoint, logging and seeding."""
 
 import json
 import logging
@@ -8,7 +8,6 @@ from datetime import UTC, datetime, timedelta
 import jwt
 import pytest
 from conftest import (
-    EXTRA,
     PASSWORD,
     PROFILE,
     error_of,
@@ -19,8 +18,13 @@ from conftest import (
 from loan_application.config import settings
 from loan_application.db import SessionLocal
 from loan_application.logging_config import JsonFormatter, LogContextFilter
-from loan_application.models import User
-from loan_application.scripts.seed import create_customer_user, create_or_reset_officer
+from loan_application.models import Customer, User
+from loan_application.schemas.customer import CustomerCreate
+from loan_application.scripts.seed import (
+    create_customer_user,
+    create_or_reset_officer,
+    link_customer_user,
+)
 from loan_application.security import verify_password
 
 
@@ -152,6 +156,14 @@ def test_user_id_is_in_log_context(client, db, officer, caplog):
     assert anonymous and anonymous[-1].user_id == "-"
 
 
+def test_docker_health_probe_is_not_logged(client, caplog):
+    caplog.set_level(logging.INFO)
+    client.get("/health", headers={"X-Health-Probe": "docker"})
+    assert not [r for r in caplog.records if "GET /health" in r.getMessage()]
+    client.get("/health")
+    assert [r for r in caplog.records if "GET /health" in r.getMessage()]
+
+
 LOAN = {"customer_id": 1, "amount": 100000, "tenure_months": 12}
 
 
@@ -161,32 +173,20 @@ PROTECTED = [
     ("get", "/api/customers/{id}/summary"),
     ("get", "/api/customers/{id}/loans"),
     ("post", "/api/loans"),
+    ("get", "/api/loans"),
     ("get", "/api/loans/{id}"),
 ]
-# EXTRA APIs (commented out in the routers); add back to PROTECTED when enabled:
-# ("get", "/api/customers"), ("get", "/api/customers/me"),
-# ("patch", "/api/customers/{id}"), ("delete", "/api/customers/{id}"),
-# ("get", "/api/loans"), ("delete", "/api/loans/{id}"),
-# ("get", "/api/users"), ("get", "/api/users/me"), ("patch", "/api/users/me/password"),
-# ("get", "/api/users/{id}"), ("patch", "/api/users/{id}/role"),
-# ("delete", "/api/users/{id}")
 
 
 WITH_ID = [(method, path) for method, path in PROTECTED if "{id}" in path]
 
 
 WITH_BODY = [("post", "/api/customers"), ("post", "/api/loans")]
-# EXTRA: ("patch", "/api/customers/{id}"), ("patch", "/api/users/{id}/role"),
-# ("patch", "/api/users/me/password")
 
 
 def body_for(path):
     if path.startswith("/api/loans"):
         return LOAN
-    if path.endswith("/role"):
-        return {"role": "OFFICER"}
-    if path.endswith("/password"):
-        return {"old_password": "Password@123", "new_password": "Password@456"}
     return PROFILE
 
 
@@ -202,8 +202,6 @@ def test_no_token_is_401(client, method, path):
 @pytest.mark.parametrize(("method", "path"), WITH_BODY)
 @pytest.mark.parametrize("token", [None, "not-a-jwt"], ids=["no-token", "bad-token"])
 def test_malformed_json_without_valid_token_is_401(client, method, path, token):
-    # Regression: FastAPI reads the body before checking the token, which used to
-    # answer 400 INVALID_REQUEST to callers who were not logged in.
     headers = {"Content-Type": "application/json"}
     if token:
         headers["Authorization"] = f"Bearer {token}"
@@ -244,22 +242,6 @@ def test_missing_record_is_404_for_officer(client, officer, method, path):
     response = client.request(method, url, headers=officer, json=body_for(path))
     assert response.status_code == 404
     assert error_of(response) == "NOT_FOUND"
-
-
-@EXTRA
-@pytest.mark.parametrize(
-    ("method", "path", "error"),
-    [
-        ("patch", "/api/customers/1", "CUSTOMER_PROFILE_REQUIRED"),
-        ("get", "/api/loans", "CUSTOMER_PROFILE_REQUIRED"),
-        ("delete", "/api/customers/1", "FORBIDDEN"),
-        ("delete", "/api/loans/1", "FORBIDDEN"),
-    ],
-)
-def test_customer_without_profile_is_403(client, profileless, method, path, error):
-    response = client.request(method, path, headers=profileless, json=PROFILE)
-    assert response.status_code == 403
-    assert error_of(response) == error
 
 
 def test_token_of_deactivated_user_is_401(client, db, signup):
@@ -351,144 +333,37 @@ def test_customer_user_needs_existing_customer(cleanup, capsys):
     assert existing_user("seed_customer").customer_id is None
 
 
-def user_id(db, username):
-    return db.query(User).filter_by(username=username).one().id
+@pytest.fixture
+def unlinked_customer():
+    with SessionLocal() as db:
+        data = CustomerCreate.model_validate({**PROFILE, "email": "link@example.com"})
+        customer = Customer(**data.model_dump())
+        db.add(customer)
+        db.commit()
+        customer_id = customer.id
+    yield customer_id
+    with SessionLocal() as db:
+        db.query(User).filter_by(username="seed_customer").delete()
+        db.query(Customer).filter_by(id=customer_id).delete()
+        db.commit()
 
 
-@EXTRA
-def test_users_me(client, db, signup, officer):
-    headers, customer_id = signup()
-    me = client.get("/api/users/me", headers=headers).json()
-    assert me["username"] == "meena" and me["role"] == "CUSTOMER"
-    assert me["customer_id"] == customer_id and "password_hash" not in me
-    assert client.get("/api/users/me", headers=officer).json()["role"] == "OFFICER"
+def test_link_customer_user(unlinked_customer, client, capsys):
+    link_customer_user("seed_customer", unlinked_customer)
+    assert "not found" in capsys.readouterr().out
 
+    create_customer_user("seed_customer", PASSWORD)
+    link_customer_user("seed_customer", 999999)
+    assert "not found" in capsys.readouterr().out
 
-@EXTRA
-def test_user_by_id(client, db, signup, officer):
-    meena, _ = signup()
-    signup(email="ravi@example.com")
-    meena_id, ravi_id = user_id(db, "meena"), user_id(db, "ravi")
-    assert client.get(f"/api/users/{meena_id}", headers=meena).status_code == 200
-    for other in (ravi_id, 999999):  # no probing which ids exist
-        response = client.get(f"/api/users/{other}", headers=meena)
-        assert response.status_code == 403
-    assert client.get(f"/api/users/{ravi_id}", headers=officer).status_code == 200
-    response = client.get("/api/users/999999", headers=officer)
-    assert response.status_code == 404
-    assert response.json()["message"] == "User with id 999999 not found"
-
-
-@EXTRA
-def test_only_officers_list_users(client, signup, officer):
-    headers, _ = signup()
-    assert client.get("/api/users", headers=headers).status_code == 403
-    users = client.get("/api/users", headers=officer).json()
-    assert {u["username"] for u in users} == {"officer1", "meena"}
-
-
-@EXTRA
-def test_officer_changes_role(client, db, signup, officer):
-    headers, customer_id = signup()
-    url = f"/api/users/{user_id(db, 'meena')}/role"
-    promoted = client.patch(url, headers=officer, json={"role": "OFFICER"})
-    assert promoted.status_code == 200
-    assert promoted.json()["role"] == "OFFICER"
-    # Officers have no profile; the customer record itself stays.
-    assert promoted.json()["customer_id"] is None
-    assert client.get(f"/api/customers/{customer_id}", headers=officer).is_success
-    # The role is read from the database, so the old token now acts as officer.
-    assert client.get("/api/users", headers=headers).status_code == 200
-    demoted = client.patch(url, headers=officer, json={"role": "CUSTOMER"})
-    assert demoted.json()["role"] == "CUSTOMER"
-
-
-@EXTRA
-def test_officer_cannot_demote_themselves(client, db, officer):
-    url = f"/api/users/{user_id(db, 'officer1')}/role"
-    response = client.patch(url, headers=officer, json={"role": "CUSTOMER"})
-    assert response.status_code == 403
-    assert error_of(response) == "CANNOT_DEMOTE_SELF"
-    assert client.get("/api/users/me", headers=officer).json()["role"] == "OFFICER"
-
-
-@EXTRA
-def test_role_change_rules(client, db, signup, officer):
-    headers, _ = signup()
-    url = f"/api/users/{user_id(db, 'meena')}/role"
-    assert (
-        client.patch(url, headers=headers, json={"role": "OFFICER"}).status_code == 403
-    )
-    bad = client.patch(url, headers=officer, json={"role": "ADMIN"})
-    assert bad.status_code == 400 and bad.json()["details"][0]["field"] == "role"
-    missing = client.patch(
-        "/api/users/999999/role", headers=officer, json={"role": "OFFICER"}
-    )
-    assert missing.status_code == 404
-
-
-@EXTRA
-@pytest.mark.parametrize("who", ["officer", "customer"])
-def test_change_own_password(client, signup, officer, who):
-    if who == "customer":
-        headers, _ = signup()
-        username = "meena"
-    else:
-        headers, username = officer, "officer1"
-    body = {"old_password": PASSWORD, "new_password": "NewSecret@1"}
-    response = client.patch("/api/users/me/password", headers=headers, json=body)
+    link_customer_user("SEED_CUSTOMER", unlinked_customer)
+    assert existing_user("seed_customer").customer_id == unlinked_customer
+    headers = login(client, "seed_customer")
+    response = client.get(f"/api/customers/{unlinked_customer}", headers=headers)
     assert response.status_code == 200
-    assert response.json() == {"message": "Password changed successfully"}
-    form = {"username": username, "password": PASSWORD}
-    assert client.post("/auth/login", data=form).status_code == 401
-    login(client, username, "NewSecret@1")
 
-
-@EXTRA
-def test_change_password_needs_correct_old_password(client, signup):
-    headers, _ = signup()
-    body = {"old_password": "wrong-password", "new_password": "NewSecret@1"}
-    response = client.patch("/api/users/me/password", headers=headers, json=body)
-    assert response.status_code == 400
-    assert error_of(response) == "WRONG_PASSWORD"
-    login(client, "meena")  # unchanged
-
-
-@EXTRA
-def test_change_password_validates_new_password(client, signup):
-    headers, _ = signup()
-    body = {"old_password": PASSWORD, "new_password": "short"}
-    response = client.patch("/api/users/me/password", headers=headers, json=body)
-    assert response.status_code == 400
-    assert response.json()["details"][0]["field"] == "new_password"
-
-
-@EXTRA
-def test_officer_deactivates_user(client, db, signup, officer):
-    headers, customer_id = signup()
-    url = f"/api/users/{user_id(db, 'meena')}"
-    response = client.delete(url, headers=officer)
-    assert response.status_code == 200
-    assert response.json() == {"message": "User deactivated successfully"}
-    # Soft delete: the row and the customer profile stay, logging in does not work.
-    assert client.get(url, headers=officer).json()["is_active"] is False
-    assert client.get(f"/api/customers/{customer_id}", headers=officer).is_success
-    assert client.get("/api/customers/me", headers=headers).status_code == 401
-    form = {"username": "meena", "password": PASSWORD}
-    response = client.post("/auth/login", data=form)
-    assert response.status_code == 401
-    assert error_of(response) == "INVALID_CREDENTIALS"
-
-
-@EXTRA
-def test_deactivate_rules(client, db, signup, officer):
-    headers, _ = signup()
-    signup(email="ravi@example.com")
-    ravi = f"/api/users/{user_id(db, 'ravi')}"
-    assert client.delete(ravi, headers=headers).status_code == 403
-    own = client.delete(f"/api/users/{user_id(db, 'officer1')}", headers=officer)
-    assert own.status_code == 403 and error_of(own) == "CANNOT_DEACTIVATE_SELF"
-    assert client.delete("/api/users/999999", headers=officer).status_code == 404
+    link_customer_user("seed_customer", unlinked_customer)
+    assert "already linked" in capsys.readouterr().out
 
 
 def test_tampered_token_is_401(client, signup):
@@ -502,25 +377,6 @@ def test_tampered_token_is_401(client, signup):
             headers={"Authorization": f"Bearer {bad}"},
         )
         assert response.status_code == 401
-
-
-@EXTRA
-@pytest.mark.parametrize(
-    ("method", "path"),
-    [
-        ("get", "/api/customers"),
-        ("delete", "/api/customers/1"),
-        ("delete", "/api/loans/1"),
-        ("get", "/api/users"),
-        ("patch", "/api/users/1/role"),
-        ("delete", "/api/users/1"),
-    ],
-)
-def test_customer_on_officer_route_is_403(client, signup, method, path):
-    headers, _ = signup()
-    body = {**PROFILE, "email": "x@example.com", "role": "OFFICER"}
-    response = client.request(method, path, headers=headers, json=body)
-    assert response.status_code == 403
 
 
 def test_register_login_then_create_own_profile(client, db):

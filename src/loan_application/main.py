@@ -28,9 +28,6 @@ from loan_application.logging_config import (
 )
 from loan_application.routers import auth, customers, loans
 
-# EXTRA API (not in Round 2 spec / plan up to Week 2 Tuesday) - uncomment to enable.
-# from loan_application.routers import users
-
 setup_logging(settings.log_format)
 logger = logging.getLogger(__name__)
 
@@ -50,8 +47,6 @@ app.add_exception_handler(RequestValidationError, request_validation_error)
 app.include_router(auth.router)
 app.include_router(customers.router)
 app.include_router(loans.router)
-# EXTRA API (not in Round 2 spec / plan up to Week 2 Tuesday) - uncomment to enable.
-# app.include_router(users.router)
 
 
 def openapi_schema() -> dict:
@@ -85,13 +80,15 @@ async def request_context(
         response = error_response(500, {"error": "INTERNAL_ERROR", "message": message})
     ms = (time.perf_counter() - start) * 1000
     user_id_var.set(getattr(request.state, "user_id", None))
-    logger.info(
-        "%s %s -> %s (%.1f ms)",
-        request.method,
-        request.url.path,
-        coloured_status(response.status_code, settings.log_format),
-        ms,
-    )
+    probe = "X-Health-Probe" in request.headers and response.status_code < 400
+    if not probe:
+        logger.info(
+            "%s %s -> %s (%.1f ms)",
+            request.method,
+            request.url.path,
+            coloured_status(response.status_code, settings.log_format),
+            ms,
+        )
     response.headers["X-Request-ID"] = request_id
     request_id_var.reset(token)
     return response

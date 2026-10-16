@@ -1,6 +1,3 @@
-# docker compose up --build   -> postgres + api (migrations run on start)
-# Values come from .env (copy .env.example); compose stops with an error if a
-# required one is missing. No secret is written in this file.
 services:
   db:
     image: postgres:16
@@ -25,7 +22,6 @@ services:
       db:
         condition: service_healthy
     environment:
-      # Inside compose the database is the "db" service on 5432, not localhost:5433.
       DATABASE_URL: postgresql+psycopg://kowshick:${POSTGRES_PASSWORD}@db:5432/app_db
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:?set JWT_SECRET_KEY in .env}
       JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}

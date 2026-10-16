@@ -9,8 +9,9 @@ from pydantic import (
     EmailStr,
     Field,
     PastDate,
-    field_validator,
 )
+
+from loan_application.schemas.auth import Username
 
 RiskBand = Literal["LOW", "MEDIUM", "HIGH"]
 
@@ -22,9 +23,6 @@ Phone = Annotated[str, Field(pattern=r"^[0-9]{10}$")]
 Income = Annotated[Decimal, Field(gt=0, max_digits=12, decimal_places=2)]
 Address = Annotated[str, Field(min_length=1, max_length=255)]
 
-# Fields a customer may change on their own profile; the rest need an officer.
-CUSTOMER_EDITABLE = {"name", "phone", "address"}
-
 
 class CustomerCreate(BaseModel):
     name: Name
@@ -33,28 +31,7 @@ class CustomerCreate(BaseModel):
     date_of_birth: PastDate
     monthly_income: Income
     address: Address | None = None
-
-
-class CustomerUpdate(BaseModel):
-    """PATCH body: only the fields sent are changed. Unknown fields are ignored."""
-
-    name: Name | None = None
-    email: Email | None = None
-    phone: Phone | None = None
-    date_of_birth: PastDate | None = None
-    monthly_income: Income | None = None
-    address: Address | None = None
-
-    # Runs only for fields that were sent; address may be cleared with null.
-    @field_validator("name", "email", "phone", "date_of_birth", "monthly_income")
-    @classmethod
-    def not_null(cls, value: object) -> object:
-        if value is None:
-            raise ValueError("cannot be null")
-        return value
-
-    def changes(self) -> dict:
-        return self.model_dump(exclude_unset=True)
+    username: Username | None = Field(default=None, exclude=True)
 
 
 class CustomerOut(BaseModel):
@@ -67,14 +44,6 @@ class CustomerOut(BaseModel):
     date_of_birth: date
     monthly_income: float
     address: str | None
-
-
-class CustomerPage(BaseModel):
-    items: list[CustomerOut]
-    page: int
-    size: int
-    total: int
-    pages: int
 
 
 class CustomerSummary(BaseModel):

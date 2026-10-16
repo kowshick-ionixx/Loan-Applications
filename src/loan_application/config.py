@@ -16,4 +16,4 @@ class Settings(BaseSettings):
     seed_officer_password: str | None = None
 
 
-settings = Settings()  # type: ignore[call-arg]  # values come from .env
+settings = Settings()  # type: ignore[call-arg]

@@ -33,11 +33,22 @@ type DbSession = Annotated[Session, Depends(get_db)]
 
 
 @contextmanager
-def transaction(db: Session, error: str, message: str) -> Iterator[None]:
-    """Commit once at the end; a unique/foreign-key clash rolls back and raises 409."""
+def transaction(
+    db: Session, error: str | None = None, message: str = ""
+) -> Iterator[None]:
+    """The service layer's unit of work: wrap every read and write of one
+    operation, so it commits once at the end or not at all.
+
+    Any exception rolls everything back. A unique/foreign-key clash becomes a
+    409 with the given error code (or is re-raised when none is given)."""
     try:
         yield
         db.commit()
     except IntegrityError:
         db.rollback()
+        if error is None:
+            raise
         raise AppError(409, error, message) from None
+    except BaseException:
+        db.rollback()
+        raise

@@ -7,7 +7,6 @@ from loan_application.repositories import user_repository
 from loan_application.schemas.auth import RegisterRequest
 from loan_application.security import hash_password, verify_password
 
-# Checked when the username is unknown, so both failures take the same time.
 DUMMY_HASH = hash_password("dummy-password")
 
 
@@ -18,16 +17,15 @@ def add_user(
     role: str,
     customer_id: int | None = None,
 ) -> User:
-    if user_repository.get_by_username(db, username):
-        raise DuplicateUsernameError(username)
-    user = User(
-        username=username,
-        password_hash=hash_password(password),
-        role=role,
-        customer_id=customer_id,
-    )
-    # The unique index still catches two requests racing for the same name.
     with transaction(db, "DUPLICATE_USERNAME", f"Username '{username}' already exists"):
+        if user_repository.get_by_username(db, username):
+            raise DuplicateUsernameError(username)
+        user = User(
+            username=username,
+            password_hash=hash_password(password),
+            role=role,
+            customer_id=customer_id,
+        )
         user_repository.add(db, user)
     db.refresh(user)
     return user

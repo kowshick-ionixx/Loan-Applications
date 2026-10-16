@@ -8,7 +8,6 @@ request_id_var: ContextVar[str | None] = ContextVar("request_id", default=None)
 user_id_var: ContextVar[int | None] = ContextVar("user_id", default=None)
 
 
-# ANSI colours: green 2xx, cyan 3xx, yellow 4xx, red 5xx.
 STATUS_COLOURS = {2: "\x1b[32m", 3: "\x1b[36m", 4: "\x1b[33m", 5: "\x1b[31m"}
 
 
@@ -39,7 +38,6 @@ class JsonFormatter(logging.Formatter):
             "message": record.getMessage(),
         }
         if record.exc_info:
-            # Server-side only; the client never sees this.
             entry["exception"] = self.formatException(record.exc_info)
         return json.dumps(entry, default=str)
 
