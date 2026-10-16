@@ -7,7 +7,6 @@ from fastapi.security import OAuth2PasswordBearer
 
 from loan_application.db import MAX_ID, DbSession
 from loan_application.exceptions import (
-    ForbiddenError,
     ProfileRequiredError,
     UnauthorizedError,
 )
@@ -55,15 +54,6 @@ async def require_customer_profile(user: CurrentUser) -> User:
 
 
 ProfileUser = Annotated[User, Depends(require_customer_profile)]
-
-
-async def require_officer(user: CurrentUser) -> User:
-    if user.role != UserRole.OFFICER:
-        raise ForbiddenError()
-    return user
-
-
-OfficerUser = Annotated[User, Depends(require_officer)]
 
 
 def requires_login(request: Request) -> bool:

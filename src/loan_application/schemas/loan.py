@@ -5,6 +5,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from loan_application.db import MAX_ID
+from loan_application.schemas.common import Page
 
 LoanStatus = Literal["APPROVED", "REJECTED"]
 
@@ -27,3 +28,7 @@ class LoanOut(BaseModel):
     status: LoanStatus
     rejection_reason: str | None
     applied_on: date
+
+
+class LoanPage(Page[LoanOut]):
+    pass

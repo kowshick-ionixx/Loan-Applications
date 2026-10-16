@@ -1,8 +1,4 @@
 #!/bin/sh
-# Runs every time the api container starts:
-# 1. bring the database schema up to date (safe to repeat)
-# 2. create or reset the first officer, only if SEED_OFFICER_PASSWORD is set
-# 3. start the server (the CMD from the Dockerfile)
 set -e
 
 echo "Running database migrations..."

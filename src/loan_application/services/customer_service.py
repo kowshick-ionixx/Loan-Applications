@@ -1,18 +1,10 @@
-import math
-
 from sqlalchemy.orm import Session
 
 from loan_application.db import transaction
 from loan_application.exceptions import AppError, ForbiddenError, NotFoundError
 from loan_application.models import Customer, User, UserRole
-from loan_application.repositories import customer_repository, loan_repository
-from loan_application.schemas.customer import (
-    CUSTOMER_EDITABLE,
-    CustomerCreate,
-    CustomerOut,
-    CustomerPage,
-    CustomerUpdate,
-)
+from loan_application.repositories import customer_repository, user_repository
+from loan_application.schemas.customer import CustomerCreate
 
 DUPLICATE_EMAIL = ("DUPLICATE_EMAIL", "Email already exists")
 
@@ -22,33 +14,44 @@ def check_email_free(db: Session, email: str) -> None:
         raise AppError(409, *DUPLICATE_EMAIL)
 
 
+def login_to_link(db: Session, data: CustomerCreate, user: User) -> User | None:
+    """The login the new profile belongs to: the caller's own for a customer,
+    the named CUSTOMER login for an officer, or none (an unlinked profile)."""
+    if user.role == UserRole.CUSTOMER:
+        owner = user
+    elif data.username is None:
+        return None
+    else:
+        owner = user_repository.get_by_username(db, data.username, lock=True)
+        if owner is None:
+            raise AppError(404, "NOT_FOUND", f"User '{data.username}' not found")
+        if owner.role != UserRole.CUSTOMER:
+            raise AppError(
+                400, "NOT_A_CUSTOMER", f"User '{data.username}' is not a CUSTOMER login"
+            )
+    if owner.customer_id is not None:
+        message = (
+            "You already have a customer profile"
+            if owner is user
+            else f"User '{owner.username}' already has a customer profile"
+        )
+        raise AppError(409, "PROFILE_EXISTS", message)
+    return owner
+
+
 def create_customer(db: Session, data: CustomerCreate, user: User) -> Customer:
-    """An officer creates an unlinked profile; a customer creates their own,
-    once, and it is linked to their login."""
-    is_customer = user.role == UserRole.CUSTOMER
-    if is_customer and user.customer_id is not None:
-        raise AppError(409, "PROFILE_EXISTS", "You already have a customer profile")
-    check_email_free(db, data.email)
-    customer = Customer(**data.model_dump())
-    # The unique index still catches two requests racing for the same email.
+    """A customer creates their own profile, once, linked to their login. An
+    officer creates one for the CUSTOMER login named in `username`, or an
+    unlinked profile when no username is given."""
     with transaction(db, *DUPLICATE_EMAIL):
+        owner = login_to_link(db, data, user)
+        check_email_free(db, data.email)
+        customer = Customer(**data.model_dump())
         customer_repository.add(db, customer)
-        if is_customer:
-            user.customer_id = customer.id
+        if owner is not None:
+            owner.customer_id = customer.id
             db.flush()
     return customer
-
-
-def list_customers(db: Session, page: int, size: int) -> CustomerPage:
-    total = customer_repository.count(db)
-    customers = customer_repository.list_page(db, (page - 1) * size, size)
-    return CustomerPage(
-        items=[CustomerOut.model_validate(c) for c in customers],
-        page=page,
-        size=size,
-        total=total,
-        pages=math.ceil(total / size),
-    )
 
 
 def check_owner(user: User, customer_id: int | None) -> None:
@@ -56,60 +59,15 @@ def check_owner(user: User, customer_id: int | None) -> None:
         raise ForbiddenError()
 
 
-def get_customer(db: Session, customer_id: int) -> Customer:
-    customer = customer_repository.get_by_id(db, customer_id)
+def get_customer(db: Session, customer_id: int, lock: bool = False) -> Customer:
+    customer = customer_repository.get_by_id(db, customer_id, lock)
     if customer is None:
         raise NotFoundError("Customer", customer_id)
     return customer
 
 
-def get_customer_for_user(db: Session, customer_id: int, user: User) -> Customer:
-    # Ownership first, so a customer cannot tell which other ids exist.
-    check_owner(user, customer_id)
-    return get_customer(db, customer_id)
-
-
-def get_own_customer(db: Session, user: User) -> Customer:
-    customer = customer_repository.get_by_id(db, user.customer_id or 0)
-    if customer is None:
-        raise AppError(404, "NOT_FOUND", "You do not have a customer profile")
-    return customer
-
-
-def update_customer(
-    db: Session, customer_id: int, data: CustomerUpdate, user: User
+def get_customer_for_user(
+    db: Session, customer_id: int, user: User, lock: bool = False
 ) -> Customer:
     check_owner(user, customer_id)
-    changes = data.changes()
-    if user.role == UserRole.CUSTOMER:
-        locked = sorted(set(changes) - CUSTOMER_EDITABLE)
-        if locked:
-            raise ForbiddenError(
-                f"Customers can only change name, phone and address, not {', '.join(locked)}"
-            )
-    customer = get_customer(db, customer_id)
-    if "email" in changes and changes["email"] != customer.email:
-        check_email_free(db, changes["email"])
-    with transaction(db, *DUPLICATE_EMAIL):
-        for field, value in changes.items():
-            setattr(customer, field, value)
-        db.flush()
-    return customer
-
-
-def message_has_active_loans(customer_id: int) -> str:
-    return f"Customer {customer_id} has active loans and cannot be deleted"
-
-
-def delete_customer(db: Session, customer_id: int) -> None:
-    """Allowed only without APPROVED loans; their rejected applications go too."""
-    customer = get_customer(db, customer_id)
-    if loan_repository.count_approved_for_customer(db, customer_id):
-        raise AppError(
-            409, "CUSTOMER_HAS_ACTIVE_LOANS", message_has_active_loans(customer_id)
-        )
-    # An approved loan added meanwhile still trips the foreign key -> 409.
-    error = ("CUSTOMER_HAS_ACTIVE_LOANS", message_has_active_loans(customer_id))
-    with transaction(db, *error):
-        loan_repository.delete_inactive_for_customer(db, customer_id)
-        customer_repository.delete(db, customer)
+    return get_customer(db, customer_id, lock)

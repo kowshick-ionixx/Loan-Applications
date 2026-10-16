@@ -15,7 +15,6 @@ from loan_application.services import auth_service
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 
-# EXTRA API (not in Round 2 spec / plan up to Week 2 Tuesday) - enabled.
 @router.post(
     "/register",
     status_code=status.HTTP_201_CREATED,

@@ -75,15 +75,5 @@ def main() -> None:
     create_or_reset_officer(username, password)
 
 
-def create_officer_user(username: str, password: str) -> None:
-    with SessionLocal() as db:
-        try:
-            user = add_user(db, username.lower(), password, UserRole.OFFICER)
-        except AppError as e:
-            print(f"Could not create user: {e.message}")
-            return
-        print(f"OFFICER user '{user.username}' created (id={user.id})")
-
-
 if __name__ == "__main__":
     main()

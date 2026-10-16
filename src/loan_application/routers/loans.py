@@ -1,18 +1,13 @@
-from fastapi import APIRouter
+from typing import Annotated
+
+from fastapi import APIRouter, Query
 
 from loan_application.db import DbSession
 from loan_application.dependencies import PositiveId, ProfileUser
 from loan_application.models import Loan
-from loan_application.schemas.common import (
-    PROTECTED_RESPONSES,
-    error,
-)
-from loan_application.schemas.loan import LoanCreate, LoanOut, LoanStatus
+from loan_application.schemas.common import PROTECTED_RESPONSES, error
+from loan_application.schemas.loan import LoanCreate, LoanOut, LoanPage, LoanStatus
 from loan_application.services import loan_service
-
-# EXTRA API imports - uncomment together with the EXTRA routes below.
-# from loan_application.dependencies import OfficerUser
-# from loan_application.schemas.common import MessageResponse
 
 router = APIRouter(tags=["Loans"], responses=PROTECTED_RESPONSES)
 LOAN_NOT_FOUND = {404: error("Loan not found")}
@@ -29,28 +24,22 @@ def apply_for_loan(data: LoanCreate, db: DbSession, user: ProfileUser) -> Loan:
     return loan_service.apply_for_loan(db, data, user)
 
 
-# EXTRA API (not in Round 2 spec / plan up to Week 2 Tuesday) - uncomment to enable.
-# @router.get("/api/loans", response_model=list[LoanOut])
-# def list_loans(
-#     db: DbSession, user: ProfileUser, status: LoanStatus | None = None
-# ) -> list[Loan]:
-#     return loan_service.list_loans(db, status, user)
+@router.get("/api/loans", response_model=LoanPage)
+def list_loans(
+    db: DbSession,
+    user: ProfileUser,
+    status: LoanStatus | None = None,
+    page: Annotated[int, Query(ge=1)] = 1,
+    size: Annotated[int, Query(ge=1, le=100)] = 20,
+) -> LoanPage:
+    """Officers see every loan, customers only their own; oldest first.
+    `pages` is 0 when nothing matches; a page past the end has no items."""
+    return loan_service.list_loans(db, status, page, size, user)
 
 
 @router.get("/api/loans/{loan_id}", response_model=LoanOut, responses=LOAN_NOT_FOUND)
 def get_loan(loan_id: PositiveId, db: DbSession, user: ProfileUser) -> Loan:
     return loan_service.get_loan(db, loan_id, user)
-
-
-# EXTRA API (not in Round 2 spec / plan up to Week 2 Tuesday) - uncomment to enable.
-# @router.delete(
-#     "/api/loans/{loan_id}", response_model=MessageResponse, responses=LOAN_NOT_FOUND
-# )
-# def delete_loan(
-#     loan_id: PositiveId, db: DbSession, user: OfficerUser
-# ) -> MessageResponse:
-#     loan_service.delete_loan(db, loan_id, user)
-#     return MessageResponse(message="Loan deleted successfully")
 
 
 @router.get(

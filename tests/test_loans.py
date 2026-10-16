@@ -4,7 +4,7 @@ from datetime import date, datetime
 from decimal import Decimal
 
 import pytest
-from conftest import EXTRA, PROFILE, apply, create, fields_of
+from conftest import PROFILE, apply, create, fields_of
 
 from loan_application.models import Customer
 from loan_application.services.loan_service import (
@@ -27,7 +27,7 @@ def born_years_ago(years: int) -> str:
     today = datetime.now().astimezone().date()
     try:
         return today.replace(year=today.year - years).isoformat()
-    except ValueError:  # 29 Feb in a non-leap year
+    except ValueError:
         return today.replace(day=28, year=today.year - years).isoformat()
 
 
@@ -89,13 +89,13 @@ def test_third_loan_after_two_approvals(client, officer):
     assert third["rejection_reason"] == ACTIVE_REASON
 
 
-def test_list_loans_newest_first_and_status_filter(client, officer):
+def test_list_loans_oldest_first_and_status_filter(client, officer):
     cid = create(client, officer)
     first = apply(client, officer, cid).json()["id"]
     second = apply(client, officer, cid, amount=2000000).json()["id"]
     url = f"/api/customers/{cid}/loans"
     listed = client.get(url, headers=officer).json()
-    assert [loan["id"] for loan in listed] == [second, first]
+    assert [loan["id"] for loan in listed] == [first, second]
     rejected = client.get(f"{url}?status=REJECTED", headers=officer).json()
     assert [loan["id"] for loan in rejected] == [second]
     assert client.get(f"{url}?status=PENDING", headers=officer).status_code == 400
@@ -115,54 +115,101 @@ def test_customer_cannot_apply_for_another_customer(client, signup):
     assert apply(client, headers_a, a).status_code == 201
 
 
-@EXTRA
+def ids(response):
+    return [loan["id"] for loan in response.json()["items"]]
+
+
 def test_list_loans_officer_sees_all_customer_sees_own(client, signup, officer):
     meena, meena_id = signup()
     ravi, ravi_id = signup(email="ravi@example.com")
     apply(client, meena, meena_id)
     apply(client, ravi, ravi_id)
 
-    all_loans = client.get("/api/loans", headers=officer).json()
+    all_loans = client.get("/api/loans", headers=officer).json()["items"]
     assert {loan["customer_id"] for loan in all_loans} == {meena_id, ravi_id}
 
     own = client.get("/api/loans", headers=meena).json()
-    assert [loan["customer_id"] for loan in own] == [meena_id]
+    assert [loan["customer_id"] for loan in own["items"]] == [meena_id]
+    assert own["total"] == 1
 
 
-@EXTRA
 def test_list_loans_filters_by_status(client, signup, officer):
     headers, customer_id = signup()
     apply(client, headers, customer_id)
-    apply(client, headers, customer_id, amount=5000000)  # over 20x income
+    apply(client, headers, customer_id, amount=5000000)
 
     response = client.get("/api/loans?status=REJECTED", headers=officer)
-    assert [loan["status"] for loan in response.json()] == ["REJECTED"]
+    assert [loan["status"] for loan in response.json()["items"]] == ["REJECTED"]
+    assert response.json()["total"] == 1
 
 
-@EXTRA
-def test_officer_deletes_loan(client, signup, officer):
-    headers, customer_id = signup()
-    loan_id = apply(client, headers, customer_id).json()["id"]
+def test_list_loans_pages_oldest_first(client, officer):
+    cid = create(client, officer)
+    created = [
+        apply(client, officer, cid, amount=2000000).json()["id"] for _ in range(5)
+    ]
+    first = client.get("/api/loans?page=1&size=2", headers=officer)
+    assert first.status_code == 200
+    assert first.json() | {"items": None} == {
+        "items": None,
+        "page": 1,
+        "size": 2,
+        "total": 5,
+        "pages": 3,
+    }
+    assert ids(first) == created[:2]
+    assert ids(client.get("/api/loans?page=2&size=2", headers=officer)) == created[2:4]
+    assert ids(client.get("/api/loans?page=3&size=2", headers=officer)) == created[4:]
 
-    response = client.delete(f"/api/loans/{loan_id}", headers=officer)
+
+def test_list_loans_page_past_the_end_is_empty(client, officer):
+    cid = create(client, officer)
+    apply(client, officer, cid)
+    response = client.get("/api/loans?page=9", headers=officer)
     assert response.status_code == 200
-    assert response.json() == {"message": "Loan deleted successfully"}
-    assert client.get(f"/api/loans/{loan_id}", headers=officer).status_code == 404
-    assert client.delete(f"/api/loans/{loan_id}", headers=officer).status_code == 404
+    body = response.json()
+    assert (body["items"], body["total"], body["pages"]) == ([], 1, 1)
 
 
-@EXTRA
-def test_customer_cannot_delete_loan(client, signup):
+def test_list_loans_defaults_and_no_loans(client, officer):
+    body = client.get("/api/loans", headers=officer).json()
+    assert body == {"items": [], "page": 1, "size": 20, "total": 0, "pages": 0}
+
+
+def test_list_loans_status_and_paging_combine(client, signup, officer):
     headers, customer_id = signup()
-    loan_id = apply(client, headers, customer_id).json()["id"]
-    assert client.delete(f"/api/loans/{loan_id}", headers=headers).status_code == 403
+    approved = apply(client, headers, customer_id).json()["id"]
+    rejected = [
+        apply(client, headers, customer_id, amount=5000000).json()["id"]
+        for _ in range(3)
+    ]
+    response = client.get("/api/loans?status=REJECTED&size=2&page=2", headers=headers)
+    assert ids(response) == [rejected[2]]
+    assert (response.json()["total"], response.json()["pages"]) == (3, 2)
+    assert approved not in ids(response)
 
 
-@EXTRA
-def test_list_all_loans_rejects_unknown_status(client, officer):
-    response = client.get("/api/loans?status=PENDING", headers=officer)
+@pytest.mark.parametrize(
+    ("query", "field"),
+    [
+        ("page=0", "page"),
+        ("page=-1", "page"),
+        ("page=abc", "page"),
+        ("size=0", "size"),
+        ("size=101", "size"),
+        ("status=PENDING", "status"),
+    ],
+)
+def test_list_loans_rejects_bad_query(client, officer, query, field):
+    response = client.get(f"/api/loans?{query}", headers=officer)
     assert response.status_code == 400
-    assert response.json()["details"][0]["field"] == "status"
+    assert response.json()["error"] == "VALIDATION_FAILED"
+    assert fields_of(response) == {field}
+
+
+def test_list_loans_needs_login_and_profile(client, profileless):
+    assert client.get("/api/loans").status_code == 401
+    assert client.get("/api/loans", headers=profileless).status_code == 403
 
 
 ANITHA = {**PROFILE, "name": "Anitha Selvam", "email": "anitha@example.com"}
@@ -186,7 +233,7 @@ def test_customer_journey(client, officer, signup):
 
     loans_url = f"/api/customers/{cid}/loans"
     loans = client.get(loans_url, headers=anitha).json()
-    assert [loan["id"] for loan in loans] == [rejected["id"], approved["id"]]
+    assert [loan["id"] for loan in loans] == [approved["id"], rejected["id"]]
     pending = client.get(f"{loans_url}?status=PENDING", headers=anitha)
     assert pending.status_code == 400
 

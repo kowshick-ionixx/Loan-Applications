@@ -41,14 +41,4 @@ target-version = "py312"
 testpaths = ["tests"]
 addopts = "-v --color=yes"
 console_output_style = "classic"
-# FastAPI's TestClient still uses httpx; the warning is about the library, not our code.
 filterwarnings = ["ignore:Using `httpx` with `starlette.testclient`"]
-
-[tool.coverage.run]
-# EXTRA API modules that are switched off (see routers/users.py and main.py).
-# (schemas/user.py stays measured: POST /auth/register returns UserOut.)
-# Remove these lines when the users API is enabled again.
-omit = [
-    "*/loan_application/routers/users.py",
-    "*/loan_application/services/user_service.py",
-]
