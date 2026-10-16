@@ -13,9 +13,8 @@ def get_by_id(db: Session, user_id: int) -> User | None:
     return db.get(User, user_id)
 
 
-def get_by_username(db: Session, username: str) -> User | None:
-    return db.scalar(select(User).where(User.username == username))
-
-
-def list_all(db: Session) -> list[User]:
-    return list(db.scalars(select(User).order_by(User.id)))
+def get_by_username(db: Session, username: str, lock: bool = False) -> User | None:
+    stmt = select(User).where(User.username == username)
+    if lock:
+        stmt = stmt.with_for_update()
+    return db.scalar(stmt)

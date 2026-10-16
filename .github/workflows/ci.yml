@@ -26,7 +26,6 @@ jobs:
       postgres:
         image: postgres:16
         env:
-          # Throwaway database that lives only for this job; not a real secret.
           POSTGRES_USER: ci
           POSTGRES_PASSWORD: ci
           POSTGRES_DB: app_db_test
@@ -47,7 +46,6 @@ jobs:
           version: "0.12.23"
           enable-cache: true
       - run: uv sync --locked
-      # A fresh random JWT key per run, so no secret is stored in the repo.
       - name: Generate JWT secret
         run: echo "JWT_SECRET_KEY=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
       - name: Run tests

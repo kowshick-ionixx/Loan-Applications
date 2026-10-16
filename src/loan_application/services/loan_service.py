@@ -9,7 +9,7 @@ from loan_application.exceptions import AppError
 from loan_application.models import APPROVED, REJECTED, Customer, Loan, User, UserRole
 from loan_application.repositories import loan_repository
 from loan_application.schemas.customer import CustomerSummary, RiskBand
-from loan_application.schemas.loan import LoanCreate
+from loan_application.schemas.loan import LoanCreate, LoanOut, LoanPage
 from loan_application.services.customer_service import (
     check_owner,
     get_customer_for_user,
@@ -66,24 +66,30 @@ def get_risk_band(emi_to_income_ratio: Decimal) -> RiskBand:
 
 
 def apply_for_loan(db: Session, data: LoanCreate, user: User) -> Loan:
-    customer = get_customer_for_user(db, data.customer_id, user)
-    today = datetime.now().astimezone().date()
-    approved_count = loan_repository.count_approved_for_customer(db, customer.id)
-    reason = check_eligibility(customer, data.amount, approved_count, today)
-    rate = INTEREST_RATES[data.tenure_months]
+    """One transaction from the eligibility check to the insert. The customer
+    row is locked (FOR UPDATE), so two applications for the same customer run
+    one after the other: the second sees the first one's approval and cannot
+    slip past the 2-active-loans rule, and the customer cannot be deleted
+    in between."""
+    removed = ("CUSTOMER_REMOVED", f"Customer {data.customer_id} was removed")
+    with transaction(db, *removed):
+        customer = get_customer_for_user(db, data.customer_id, user, lock=True)
+        today = datetime.now().astimezone().date()
+        approved_count = loan_repository.count_approved_for_customer(db, customer.id)
+        reason = check_eligibility(customer, data.amount, approved_count, today)
+        rate = INTEREST_RATES[data.tenure_months]
+        emi = None if reason else calculate_emi(data.amount, rate, data.tenure_months)
 
-    loan = Loan(
-        customer_id=customer.id,
-        amount=data.amount,
-        tenure_months=data.tenure_months,
-        interest_rate=rate,
-        emi=None if reason else calculate_emi(data.amount, rate, data.tenure_months),
-        status=REJECTED if reason else APPROVED,
-        rejection_reason=reason,
-        applied_on=today,
-    )
-    # The customer could be deleted between the lookup and the insert.
-    with transaction(db, "CUSTOMER_REMOVED", f"Customer {customer.id} was removed"):
+        loan = Loan(
+            customer_id=customer.id,
+            amount=data.amount,
+            tenure_months=data.tenure_months,
+            interest_rate=rate,
+            emi=emi,
+            status=REJECTED if reason else APPROVED,
+            rejection_reason=reason,
+            applied_on=today,
+        )
         loan_repository.add(db, loan)
     logger.info("Loan %s %s for customer %s", loan.id, loan.status, customer.id)
     return loan
@@ -97,17 +103,15 @@ def get_loan(db: Session, loan_id: int, user: User) -> Loan:
     return loan
 
 
-def list_loans(db: Session, status: str | None, user: User) -> list[Loan]:
-    if user.role == UserRole.CUSTOMER:
-        return loan_repository.list_for_customer(db, user.customer_id, status)
-    return loan_repository.list_all(db, status)
-
-
-def delete_loan(db: Session, loan_id: int, user: User) -> None:
-    loan = get_loan(db, loan_id, user)
-    loan_repository.delete(db, loan)
-    db.commit()
-    logger.info("Loan %s deleted", loan_id)
+def list_loans(
+    db: Session, status: str | None, page: int, size: int, user: User
+) -> LoanPage:
+    """Officers see every loan, customers only their own; oldest first."""
+    customer_id = user.customer_id if user.role == UserRole.CUSTOMER else None
+    total = loan_repository.count(db, customer_id, status)
+    loans = loan_repository.list_page(db, customer_id, status, (page - 1) * size, size)
+    items = [LoanOut.model_validate(loan) for loan in loans]
+    return LoanPage.of(items, page, size, total)
 
 
 def list_customer_loans(

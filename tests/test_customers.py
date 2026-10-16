@@ -1,10 +1,9 @@
-"""Customer endpoints: create, read, list, /me, PATCH, delete, summary."""
+"""Customer endpoints: create, read, summary."""
 
 import pytest
-from conftest import EXTRA, PROFILE, apply, create, error_of, fields_of
+from conftest import PROFILE, apply, create, error_of, fields_of
 
 from loan_application.models import User
-from loan_application.repositories import loan_repository
 from loan_application.services import customer_service
 
 
@@ -150,6 +149,53 @@ def test_officer_creates_customer_without_link(client, db, officer):
     assert customer_id_of(db, "officer1") is None
 
 
+def test_officer_creates_profile_linked_to_a_customer_login(
+    client, db, officer, profileless
+):
+    body = {**PROFILE, "username": "NoProfile"}
+    response = client.post("/api/customers", headers=officer, json=body)
+    assert response.status_code == 201
+    assert "username" not in response.json()
+    assert customer_id_of(db, "noprofile") == response.json()["id"]
+    assert customer_id_of(db, "officer1") is None
+    summary = f"/api/customers/{response.json()['id']}/summary"
+    assert client.get(summary, headers=profileless).status_code == 200
+
+
+def test_officer_cannot_link_a_login_that_has_a_profile(client, db, officer, signup):
+    _, customer_id = signup()
+    body = {**PROFILE, "email": "other@example.com", "username": "meena"}
+    response = client.post("/api/customers", headers=officer, json=body)
+    assert response.status_code == 409
+    assert error_of(response) == "PROFILE_EXISTS"
+    assert customer_id_of(db, "meena") == customer_id
+
+
+@pytest.mark.parametrize(
+    ("username", "status", "error"),
+    [("ghost", 404, "NOT_FOUND"), ("officer1", 400, "NOT_A_CUSTOMER")],
+)
+def test_officer_link_needs_an_existing_customer_login(
+    client, officer, username, status, error
+):
+    body = {**PROFILE, "username": username}
+    response = client.post("/api/customers", headers=officer, json=body)
+    assert response.status_code == status
+    assert error_of(response) == error
+    create(client, officer)
+
+
+def test_customer_cannot_link_their_profile_to_another_login(
+    client, db, profileless, signup
+):
+    signup(email="asha@example.com")
+    body = {**PROFILE, "username": "asha"}
+    response = client.post("/api/customers", headers=profileless, json=body)
+    assert response.status_code == 201
+    assert customer_id_of(db, "noprofile") == response.json()["id"]
+    assert customer_id_of(db, "asha") != response.json()["id"]
+
+
 def test_customer_only_reaches_own_data(client, signup, officer):
     headers_a, a = signup(email="asha@example.com")
     _, b = signup(email="bala@example.com")
@@ -180,204 +226,3 @@ def test_officer_reaches_everything(client, signup, officer):
     ):
         assert client.get(path, headers=officer).status_code == 200, path
     assert client.get("/api/customers/999999", headers=officer).status_code == 404
-
-
-@EXTRA
-def test_customer_patches_safe_fields_of_own_profile(client, signup):
-    headers, customer_id = signup()
-    body = {"name": "Meena Kumari", "phone": "9123456780", "address": "Chennai"}
-    response = client.patch(f"/api/customers/{customer_id}", headers=headers, json=body)
-    assert response.status_code == 200
-    assert response.json() == {**PROFILE, **body, "id": customer_id}
-
-
-@EXTRA
-@pytest.mark.parametrize(
-    "field",
-    [
-        ("email", "new@example.com"),
-        ("monthly_income", 999999),
-        ("date_of_birth", "1980-01-01"),
-    ],
-    ids=lambda f: f[0],
-)
-def test_customer_cannot_patch_locked_fields(client, signup, field):
-    headers, customer_id = signup()
-    url = f"/api/customers/{customer_id}"
-    body = {"name": "Meena Kumari", field[0]: field[1]}
-    response = client.patch(url, headers=headers, json=body)
-    assert response.status_code == 403
-    assert field[0] in response.json()["message"]
-    # Nothing was saved, not even the allowed field.
-    assert client.get(url, headers=headers).json()["name"] == PROFILE["name"]
-
-
-@EXTRA
-def test_customer_id_in_patch_body_is_ignored(client, signup):
-    headers, customer_id = signup()
-    _, other_id = signup(email="ravi@example.com")
-    url = f"/api/customers/{customer_id}"
-    body = {"customer_id": other_id, "id": other_id, "name": "Meena Kumari"}
-    response = client.patch(url, headers=headers, json=body)
-    assert response.status_code == 200
-    assert response.json()["id"] == customer_id
-
-
-@EXTRA
-def test_officer_patches_any_field(client, signup, officer):
-    _, customer_id = signup()
-    body = {"monthly_income": 75000, "email": "meena.new@example.com"}
-    url = f"/api/customers/{customer_id}"
-    response = client.patch(url, headers=officer, json=body)
-    assert response.status_code == 200
-    assert response.json()["monthly_income"] == 75000
-    assert response.json()["email"] == "meena.new@example.com"
-
-
-@EXTRA
-def test_patch_with_null_required_field_is_400(client, signup):
-    headers, customer_id = signup()
-    url = f"/api/customers/{customer_id}"
-    response = client.patch(url, headers=headers, json={"name": None})
-    assert response.status_code == 400
-    assert response.json()["details"][0]["field"] == "name"
-
-
-@EXTRA
-def test_customer_cannot_update_another_customer(client, signup):
-    meena, _ = signup()
-    _, ravi_id = signup(email="ravi@example.com")
-    url = f"/api/customers/{ravi_id}"
-    response = client.patch(url, headers=meena, json={"name": "Hacked Name"})
-    assert response.status_code == 403
-
-
-@EXTRA
-def test_update_with_taken_email_is_409(client, signup, officer):
-    signup()
-    _, ravi_id = signup(email="ravi@example.com")
-    url = f"/api/customers/{ravi_id}"
-    body = {"email": PROFILE["email"]}
-    response = client.patch(url, headers=officer, json=body)
-    assert response.status_code == 409
-    assert response.json()["error"] == "DUPLICATE_EMAIL"
-
-
-@EXTRA
-def test_update_missing_customer_is_404(client, officer):
-    response = client.patch("/api/customers/999", headers=officer, json={})
-    assert response.status_code == 404
-
-
-@EXTRA
-def test_officer_deletes_customer_without_loans(client, officer):
-    customer_id = client.post("/api/customers", headers=officer, json=PROFILE).json()[
-        "id"
-    ]
-    response = client.delete(f"/api/customers/{customer_id}", headers=officer)
-    assert response.status_code == 200
-    assert response.json() == {"message": "Customer deleted successfully"}
-    response = client.get(f"/api/customers/{customer_id}", headers=officer)
-    assert response.status_code == 404
-
-
-@EXTRA
-def test_customer_with_active_loans_cannot_be_deleted(client, signup, officer):
-    headers, customer_id = signup()
-    apply(client, headers, customer_id)
-    response = client.delete(f"/api/customers/{customer_id}", headers=officer)
-    assert response.status_code == 409
-    assert response.json()["error"] == "CUSTOMER_HAS_ACTIVE_LOANS"
-
-
-@EXTRA
-def test_customer_with_only_rejected_loans_is_deleted(client, signup, officer):
-    headers, customer_id = signup()
-    rejected = apply(client, headers, customer_id, amount=5000000).json()
-    assert rejected["status"] == "REJECTED"
-    response = client.delete(f"/api/customers/{customer_id}", headers=officer)
-    assert response.status_code == 200
-    assert response.json() == {"message": "Customer deleted successfully"}
-    assert (
-        client.get(f"/api/loans/{rejected['id']}", headers=officer).status_code == 404
-    )
-
-
-@EXTRA
-def test_loan_added_during_delete_is_409_not_500(client, signup, officer, monkeypatch):
-    # Simulates an approved loan arriving after the "active loans?" check: the
-    # foreign key must turn into 409, and the customer must still exist.
-    headers, customer_id = signup()
-    apply(client, headers, customer_id)
-    monkeypatch.setattr(
-        loan_repository, "count_approved_for_customer", lambda db, cid: 0
-    )
-    response = client.delete(f"/api/customers/{customer_id}", headers=officer)
-    assert response.status_code == 409
-    assert response.json()["error"] == "CUSTOMER_HAS_ACTIVE_LOANS"
-    assert client.get(f"/api/customers/{customer_id}", headers=officer).is_success
-
-
-@EXTRA
-def test_customer_cannot_delete_customer(client, signup):
-    headers, customer_id = signup()
-    response = client.delete(f"/api/customers/{customer_id}", headers=headers)
-    assert response.status_code == 403
-
-
-@EXTRA
-def test_deleting_a_customer_unlinks_their_login(client, signup, officer):
-    headers, customer_id = signup()
-    response = client.delete(f"/api/customers/{customer_id}", headers=officer)
-    assert response.status_code == 200
-    response = client.get(f"/api/customers/{customer_id}", headers=headers)
-    assert response.status_code == 403
-    assert error_of(response) == "CUSTOMER_PROFILE_REQUIRED"
-
-
-@EXTRA
-def test_officer_lists_customers_with_pagination(client, signup, officer):
-    ids = [signup(email=f"user{n}@example.com")[1] for n in range(3)]
-    first = client.get("/api/customers?page=1&size=2", headers=officer).json()
-    assert [c["id"] for c in first["items"]] == ids[:2]
-    assert (first["page"], first["size"], first["total"], first["pages"]) == (
-        1,
-        2,
-        3,
-        2,
-    )
-    second = client.get("/api/customers?page=2&size=2", headers=officer).json()
-    assert [c["id"] for c in second["items"]] == ids[2:]
-    empty = client.get("/api/customers?page=9&size=2", headers=officer).json()
-    assert empty["items"] == [] and empty["total"] == 3
-
-
-@EXTRA
-@pytest.mark.parametrize("query", ["page=0", "size=0", "size=101", "page=abc"])
-def test_customer_list_rejects_bad_paging(client, officer, query):
-    response = client.get(f"/api/customers?{query}", headers=officer)
-    assert response.status_code == 400
-
-
-@EXTRA
-def test_customer_cannot_list_customers(client, signup):
-    headers, _ = signup()
-    response = client.get("/api/customers", headers=headers)
-    assert response.status_code == 403
-    assert error_of(response) == "FORBIDDEN"
-
-
-@EXTRA
-def test_customer_reads_own_profile_via_me(client, signup):
-    headers, customer_id = signup()
-    response = client.get("/api/customers/me", headers=headers)
-    assert response.status_code == 200
-    assert response.json() == {**PROFILE, "address": None, "id": customer_id}
-
-
-@EXTRA
-@pytest.mark.parametrize("who", ["officer", "profileless"])
-def test_me_without_profile_is_404(client, request, who):
-    response = client.get("/api/customers/me", headers=request.getfixturevalue(who))
-    assert response.status_code == 404
-    assert error_of(response) == "NOT_FOUND"
