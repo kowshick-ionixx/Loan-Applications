@@ -383,7 +383,12 @@ def test_register_login_then_create_own_profile(client, db):
     registered = register(client, "kavya")
     assert registered.status_code == 201
     token = login(client, "kavya")
-    body = {**PROFILE, "email": "kavya@example.com", "address": "Chennai"}
+    body = {
+        **PROFILE,
+        "email": "kavya@example.com",
+        "address": "Chennai",
+        "credit_score": 720,
+    }
     created = client.post("/api/customers", headers=token, json=body)
     assert created.status_code == 201
     customer_id = created.json()["id"]

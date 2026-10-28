@@ -25,6 +25,7 @@ FIELD_MESSAGES = {
     "username": "must be 3-50 characters: letters, digits, _ . or @",
     "password": "must be at least 8 characters",
     "address": "must be 1-255 characters",
+    "credit_score": "must be a whole number between 300 and 900",
     "page": "must be a positive integer",
     "size": "must be between 1 and 100",
 }

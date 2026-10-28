@@ -89,7 +89,7 @@ Every concept has a **Definition** (what it means in general) and **In this proj
 
 **Resource and endpoint**
 *Definition:* A resource is a "thing" the API exposes (a customer, a loan). An endpoint is one method + path combination that acts on it (`GET /api/loans/{loan_id}`).
-*In this project:* 10 endpoints, listed in [API reference](#8-api-reference).
+*In this project:* 11 endpoints, listed in [API reference](#8-api-reference).
 
 **HTTP methods**
 *Definition:* The verb of a request. `GET` reads and never changes data; `POST` creates something new. (Others such as `PUT`, `PATCH` and `DELETE` exist but are not used here.)
@@ -468,7 +468,7 @@ Every concept has a **Definition** (what it means in general) and **In this proj
 
 **Migration**
 *Definition:* A versioned script that changes the database structure one step at a time, so every database (dev, test, Docker, CI) ends up identical.
-*In this project:* 7 scripts in `alembic/versions/`: create customers, add CHECK constraints, create loans, create users, allow self-registered customers, FK `SET NULL`, add address.
+*In this project:* 8 scripts in `alembic/versions/`: create customers, add CHECK constraints, create loans, create users, allow self-registered customers, FK `SET NULL`, add address, add credit score.
 
 **Revision, `upgrade()` / `downgrade()`**
 *Definition:* Each migration is a *revision* with an id and a pointer to the previous one. `upgrade()` applies the change; `downgrade()` undoes it.
@@ -632,7 +632,7 @@ Router  →  Service  →  Repository  →  Database
 
 **Eligibility rules**
 *Definition:* Conditions an applicant must meet to be approved.
-*In this project:* Age 21–60, amount ≤ 20 × monthly income, fewer than 2 approved loans. The first failing rule becomes the `rejection_reason`.
+*In this project:* Age 21–60, amount ≤ 20 × monthly income, fewer than 2 approved loans, credit score ≥ 715. The first failing rule becomes the `rejection_reason`.
 
 **Age calculation**
 *Definition:* Completed years: subtract birth year from current year, minus one if this year's birthday hasn't happened yet.
@@ -1155,7 +1155,8 @@ POST /api/customers
   "phone": "9876543210",
   "date_of_birth": "1995-06-18",
   "monthly_income": 85000,
-  "address": "Chennai"
+  "address": "Chennai",
+  "credit_score": 750
 }
 ```
 
@@ -1209,6 +1210,7 @@ Every endpoint except `/health`, `/auth/register` and `/auth/login` needs `Autho
 | GET | `/api/customers/{id}` | OFFICER any; CUSTOMER own | `200` the customer |
 | GET | `/api/customers/{id}/loans?status=` | OFFICER any; CUSTOMER own | `200` list of loans, oldest first |
 | GET | `/api/customers/{id}/summary` | OFFICER any; CUSTOMER own | `200` the loan summary |
+| GET | `/api/customers/{id}/credit-score` | OFFICER any; CUSTOMER own | `200` the score and whether it meets the 715 minimum |
 | POST | `/api/loans` | OFFICER any; CUSTOMER own `customer_id` | `201` the loan (APPROVED or REJECTED) |
 | GET | `/api/loans/{id}` | OFFICER any; CUSTOMER own | `200` the loan |
 | GET | `/api/loans?status=&page=&size=` | OFFICER all; CUSTOMER own | `200 {items, page, size, total, pages}` |
@@ -1219,7 +1221,7 @@ Every endpoint except `/health`, `/auth/register` and `/auth/login` needs `Autho
 |---|---|---|---|
 | `/health`, `/auth/*` | allowed | allowed | allowed |
 | `POST /api/customers` | 401 | own profile, once (409 `PROFILE_EXISTS` after that) | any profile |
-| `GET /api/customers/{id}`, `/loans`, `/summary` | 401 | own only, otherwise 403 | any (404 if missing) |
+| `GET /api/customers/{id}`, `/loans`, `/summary`, `/credit-score` | 401 | own only, otherwise 403 | any (404 if missing) |
 | `POST /api/loans` | 401 | own `customer_id` only | any customer |
 | `GET /api/loans`, `GET /api/loans/{id}` | 401 | own loans only | all loans |
 
@@ -1273,6 +1275,7 @@ The rules are checked in this order, and the first one that fails becomes the `r
 1. Age must be between **21 and 60**.
 2. Amount must not exceed **20 × monthly income**.
 3. The customer must have fewer than **2 APPROVED** (active) loans.
+4. Credit score must be at least **715** (a customer with no score is rejected with "Credit score is not available").
 
 Both approved and rejected applications are saved and return `201`.
 
@@ -1307,6 +1310,7 @@ EMI = P × r × (1 + r)^n / ((1 + r)^n − 1)
 | `date_of_birth` | A past date, `YYYY-MM-DD` |
 | `monthly_income` | Greater than 0, at most 2 decimal places |
 | `address` | Optional, 1–255 characters |
+| `credit_score` | Optional, whole number 300–900 |
 | `customer_id`, `{id}` | Positive integer |
 | `amount` | 10,000 – 50,00,000, at most 2 decimal places |
 | `tenure_months` | One of 12, 24, 36, 48, 60 |
@@ -1407,7 +1411,7 @@ uv run ruff check . ; uv run black --check . ; uv run pytest --cov=loan_applicat
 
 | Table | Key columns |
 |---|---|
-| `customers` | `id`, `name`, `email` (unique), `phone`, `date_of_birth`, `monthly_income`, `address`, `created_at` |
+| `customers` | `id`, `name`, `email` (unique), `phone`, `date_of_birth`, `monthly_income`, `address`, `credit_score`, `created_at` |
 | `loans` | `id`, `customer_id` → customers, `amount`, `tenure_months`, `interest_rate`, `emi`, `status`, `rejection_reason`, `applied_on` |
 | `users` | `id`, `username` (unique), `password_hash`, `role`, `customer_id` → customers (unique, `ON DELETE SET NULL`), `is_active`, `created_at` |
 

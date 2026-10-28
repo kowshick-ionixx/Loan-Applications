@@ -32,6 +32,7 @@ PROFILE = {
     "phone": "9876543210",
     "date_of_birth": "1990-05-15",
     "monthly_income": 50000,
+    "credit_score": 750,
 }
 
 

@@ -22,6 +22,7 @@ Email = Annotated[EmailStr, AfterValidator(str.lower)]
 Phone = Annotated[str, Field(pattern=r"^[0-9]{10}$")]
 Income = Annotated[Decimal, Field(gt=0, max_digits=12, decimal_places=2)]
 Address = Annotated[str, Field(min_length=1, max_length=255)]
+CreditScore = Annotated[int, Field(ge=300, le=900)]
 
 
 class CustomerCreate(BaseModel):
@@ -31,6 +32,7 @@ class CustomerCreate(BaseModel):
     date_of_birth: PastDate
     monthly_income: Income
     address: Address | None = None
+    credit_score: CreditScore | None = None
     username: Username | None = Field(default=None, exclude=True)
 
 
@@ -44,6 +46,20 @@ class CustomerOut(BaseModel):
     date_of_birth: date
     monthly_income: float
     address: str | None
+    credit_score: int | None
+
+
+class CreditScoreCheck(BaseModel):
+    """Only the credit-score rule: passing it does not mean a loan will be
+    approved, since age, income and active loans are checked too."""
+
+    customer_id: int
+    customer_name: str
+    credit_score: int | None
+    minimum_required: int
+    meets_requirement: bool
+    points_short: int | None
+    message: str
 
 
 class CustomerSummary(BaseModel):

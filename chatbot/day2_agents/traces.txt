@@ -1,0 +1,49 @@
+===== Q1: EMI for 3,00,000 at 10.5% for 24 months? =====
+  model calls tool : emi_calculator({'principal': 300000, 'annual_rate_percent': 10.5, 'tenure_months': 24})
+  tool result      : 13912.81
+  final answer     : The monthly EMI for a loan of ₹3,00,000 at 10.5% interest for 24 months is **₹13,912.81**.
+  tools in order   : emi_calculator
+
+===== Q2: Is C101 eligible for 5,00,000 at 11% for 36 months? =====
+  model calls tool : get_customer({'customer_id': 'C101'})
+  tool result      : {"customer_id": "C101", "name": "Ramesh Kumar", "age": 38, "monthly_income": 85000, "existing_emi": 12000, "credit_score": 745}
+  model calls tool : emi_calculator({'principal': 500000, 'annual_rate_percent': 11, 'tenure_months': 36})
+  tool result      : 16369.36
+  model calls tool : check_eligibility({'age': 38, 'monthly_income': 85000, 'existing_emi': 12000, 'credit_score': 745, 'new_emi': 16369.36})
+  tool result      : {"eligible": true, "failed_rules": [], "burden_percent": 33.4}
+  final answer     : Yes, Ramesh Kumar (C101) is eligible for the loan. The monthly EMI would be ₹16,369.36, and he meets all eligibility rules with a total EMI burden of 33.4%.
+  tools in order   : get_customer, emi_calculator, check_eligibility
+
+===== Q3: Is C103 eligible for 4,00,000 at 11% for 24 months? =====
+  model calls tool : get_customer({'customer_id': 'C103'})
+  tool result      : {"customer_id": "C103", "name": "Imran Sheikh", "age": 52, "monthly_income": 40000, "existing_emi": 22000, "credit_score": 680}
+  model calls tool : emi_calculator({'principal': 400000, 'annual_rate_percent': 11, 'tenure_months': 24})
+  tool result      : 18643.14
+  model calls tool : check_eligibility({'age': 52, 'monthly_income': 40000, 'existing_emi': 22000, 'credit_score': 680, 'new_emi': 18643.14})
+  tool result      : {"eligible": false, "failed_rules": ["Credit score 680 is below 700", "EMI burden 101.6% is above 50% of income"], "burden_percent": 101.6}
+  final answer     : No, C103 (Imran Sheikh) is not eligible for this loan. The eligibility check failed due to the following reasons:
+
+*   **Credit score:** Your credit score of 680 is below the required minimum of 700.
+*   **EMI burden:** Your total monthly EMI would be 101.6% of your income, which exceeds the maximum allowed limit of 50%.
+  tools in order   : get_customer, emi_calculator, check_eligibility
+
+===== Q4: Is C999 eligible for a loan? =====
+  model calls tool : get_customer({'customer_id': 'C999'})
+  tool result      : Customer C999 not found
+  final answer     : Customer C999 is not found in our system. Please provide a valid customer ID to check eligibility.
+  tools in order   : get_customer
+
+===== Q5: What is the capital of France? =====
+  final answer     : I'm sorry, but I can only assist with loan-related inquiries. For questions about geography or other topics, I recommend checking a reliable source like an encyclopedia or educational website.
+  tools in order   : -
+
+===== Q6: Can I get a loan? =====
+  final answer     : To check your eligibility for a loan, I need some details:
+
+1. Your customer ID (e.g., 'C101')
+2. The loan amount you're considering
+3. The interest rate (annual percentage)
+4. The tenure in months
+
+Please provide these details so I can assist you.
+  tools in order   : -

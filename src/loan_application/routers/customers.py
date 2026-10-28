@@ -5,6 +5,7 @@ from loan_application.dependencies import CurrentUser, PositiveId, ProfileUser
 from loan_application.models import Customer
 from loan_application.schemas.common import PROTECTED_RESPONSES, error
 from loan_application.schemas.customer import (
+    CreditScoreCheck,
     CustomerCreate,
     CustomerOut,
     CustomerSummary,
@@ -47,3 +48,17 @@ def get_customer_summary(
     customer_id: PositiveId, db: DbSession, user: ProfileUser
 ) -> CustomerSummary:
     return loan_service.get_customer_summary(db, customer_id, user)
+
+
+@router.get(
+    "/{customer_id}/credit-score",
+    response_model=CreditScoreCheck,
+    responses=NOT_FOUND,
+)
+def get_credit_score(
+    customer_id: PositiveId, db: DbSession, user: ProfileUser
+) -> CreditScoreCheck:
+    """Shows the customer's credit score and whether it meets the minimum (715)
+    needed for loan approval. Only the credit-score rule is checked: age,
+    income and active loans still apply when a loan is requested."""
+    return loan_service.check_credit_score(db, customer_id, user)
