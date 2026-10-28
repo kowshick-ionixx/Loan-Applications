@@ -1,9 +1,9 @@
 #  Name                  Amount  Months  Purpose                     Conf    Missing
 ------------------------------------------------------------------------------------
-1  Ramesh Kumar         500,000      36  renovate my house           high    -
+1  Ramesh Kumar         500,000      36  house renovation            high    -
 2  Anita Sharma       1,200,000      60  sister's wedding            high    -
 3  Imran                200,000      18  shop                        high    -
-4  Priya                      -       -  buying a two-wheeler        medium  amount, tenure_months
+4  Priya                      -       -  buying a two-wheeler        low     amount, tenure_months
 5  Suresh             2,500,000      60  Business expansion          high    -
 
 Empty string -> {'customer_name': None, 'amount': None, 'tenure_months': None, 'purpose': None, 'confidence': 'low', 'missing_fields': ['customer_name', 'amount', 'tenure_months', 'purpose']}
