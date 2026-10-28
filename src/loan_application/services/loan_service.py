@@ -8,7 +8,11 @@ from loan_application.db import transaction
 from loan_application.exceptions import AppError
 from loan_application.models import APPROVED, REJECTED, Customer, Loan, User, UserRole
 from loan_application.repositories import loan_repository
-from loan_application.schemas.customer import CustomerSummary, RiskBand
+from loan_application.schemas.customer import (
+    CreditScoreCheck,
+    CustomerSummary,
+    RiskBand,
+)
 from loan_application.schemas.loan import LoanCreate, LoanOut, LoanPage
 from loan_application.services.customer_service import (
     check_owner,
@@ -21,6 +25,7 @@ MIN_AGE = 21
 MAX_AGE = 60
 MAX_INCOME_MULTIPLE = 20
 MAX_ACTIVE_LOANS = 2
+MIN_CREDIT_SCORE = 715
 LOW_RISK_BELOW = 30
 HIGH_RISK_ABOVE = 50
 CENTS = Decimal("0.01")
@@ -54,6 +59,10 @@ def check_eligibility(
         return "Requested amount exceeds 20x monthly income"
     if approved_count >= MAX_ACTIVE_LOANS:
         return "Customer already has 2 active loans"
+    if customer.credit_score is None:
+        return "Credit score is not available"
+    if customer.credit_score < MIN_CREDIT_SCORE:
+        return "Credit score must be at least 715"
     return None
 
 
@@ -119,6 +128,29 @@ def list_customer_loans(
 ) -> list[Loan]:
     get_customer_for_user(db, customer_id, user)
     return loan_repository.list_for_customer(db, customer_id, status)
+
+
+def check_credit_score(db: Session, customer_id: int, user: User) -> CreditScoreCheck:
+    """Uses the same MIN_CREDIT_SCORE as check_eligibility, so the two always agree."""
+    customer = get_customer_for_user(db, customer_id, user)
+    score = customer.credit_score
+    if score is None:
+        meets, short, message = False, None, "No credit score on file"
+    elif score >= MIN_CREDIT_SCORE:
+        meets, short = True, 0
+        message = f"Credit score {score} meets the minimum of {MIN_CREDIT_SCORE}"
+    else:
+        meets, short = False, MIN_CREDIT_SCORE - score
+        message = f"Credit score {score} is below the minimum of {MIN_CREDIT_SCORE}"
+    return CreditScoreCheck(
+        customer_id=customer.id,
+        customer_name=customer.name,
+        credit_score=score,
+        minimum_required=MIN_CREDIT_SCORE,
+        meets_requirement=meets,
+        points_short=short,
+        message=message,
+    )
 
 
 def get_customer_summary(db: Session, customer_id: int, user: User) -> CustomerSummary:

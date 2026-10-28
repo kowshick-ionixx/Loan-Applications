@@ -23,6 +23,12 @@ INCOME_REASON = "Requested amount exceeds 20x monthly income"
 ACTIVE_REASON = "Customer already has 2 active loans"
 
 
+CREDIT_REASON = "Credit score must be at least 715"
+
+
+NO_SCORE_REASON = "Credit score is not available"
+
+
 def born_years_ago(years: int) -> str:
     today = datetime.now().astimezone().date()
     try:
@@ -69,6 +75,8 @@ def test_approved_loan_matches_spec_example(client, officer):
     [
         ({"date_of_birth": born_years_ago(19)}, 100000, AGE_REASON),
         ({"monthly_income": 40000}, 1000000, INCOME_REASON),
+        ({"credit_score": 714}, 100000, CREDIT_REASON),
+        ({"credit_score": None}, 100000, NO_SCORE_REASON),
     ],
 )
 def test_rejected_loan_is_saved_with_reason(client, officer, customer, amount, reason):
@@ -269,9 +277,13 @@ def test_customer_journey(client, officer, signup):
 TODAY = date(2026, 10, 8)
 
 
-def make_customer(age: int = 30, income: str = "50000") -> Customer:
+def make_customer(
+    age: int = 30, income: str = "50000", credit_score: int | None = 750
+) -> Customer:
     dob = date(TODAY.year - age, TODAY.month, TODAY.day)
-    return Customer(date_of_birth=dob, monthly_income=Decimal(income))
+    return Customer(
+        date_of_birth=dob, monthly_income=Decimal(income), credit_score=credit_score
+    )
 
 
 def test_emi_spec_example():
@@ -325,11 +337,28 @@ def test_active_loans_rule(approved_count, expected):
     assert result == expected
 
 
+@pytest.mark.parametrize(
+    ("credit_score", "expected"),
+    [
+        (None, NO_SCORE_REASON),
+        (300, CREDIT_REASON),
+        (714, CREDIT_REASON),
+        (715, None),
+        (900, None),
+    ],
+)
+def test_credit_score_rule(credit_score, expected):
+    customer = make_customer(credit_score=credit_score)
+    assert check_eligibility(customer, Decimal(100000), 0, TODAY) == expected
+
+
 def test_first_failing_rule_wins():
     young_and_poor = make_customer(age=20, income="10000")
     assert check_eligibility(young_and_poor, Decimal(5000000), 2, TODAY) == AGE_REASON
-    poor = make_customer(income="10000")
+    poor = make_customer(income="10000", credit_score=None)
     assert check_eligibility(poor, Decimal(5000000), 2, TODAY) == INCOME_REASON
+    busy = make_customer(credit_score=600)
+    assert check_eligibility(busy, Decimal(100000), 2, TODAY) == ACTIVE_REASON
 
 
 @pytest.mark.parametrize(

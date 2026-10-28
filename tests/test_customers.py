@@ -1,4 +1,4 @@
-"""Customer endpoints: create, read, summary."""
+"""Customer endpoints: create, read, summary, credit score."""
 
 import pytest
 from conftest import PROFILE, apply, create, error_of, fields_of
@@ -23,6 +23,9 @@ def test_create_and_get_customer(client, officer):
         ("phone", "98765"),
         ("date_of_birth", "2999-01-01"),
         ("monthly_income", 0),
+        ("credit_score", 299),
+        ("credit_score", 901),
+        ("credit_score", 750.5),
     ],
 )
 def test_customer_field_rules(client, officer, field, value):
@@ -31,6 +34,43 @@ def test_customer_field_rules(client, officer, field, value):
     assert response.status_code == 400
     assert response.json()["error"] == "VALIDATION_FAILED"
     assert fields_of(response) == {field}
+
+
+@pytest.mark.parametrize("score", [300, 750, 900])
+def test_credit_score_is_saved(client, officer, score):
+    body = {**PROFILE, "credit_score": score}
+    response = client.post("/api/customers", headers=officer, json=body)
+    assert response.status_code == 201
+    assert response.json()["credit_score"] == score
+
+
+@pytest.mark.parametrize(
+    ("score", "meets", "short", "message"),
+    [
+        (715, True, 0, "Credit score 715 meets the minimum of 715"),
+        (900, True, 0, "Credit score 900 meets the minimum of 715"),
+        (714, False, 1, "Credit score 714 is below the minimum of 715"),
+        (None, False, None, "No credit score on file"),
+    ],
+)
+def test_credit_score_check(client, officer, score, meets, short, message):
+    cid = create(client, officer, credit_score=score)
+    response = client.get(f"/api/customers/{cid}/credit-score", headers=officer)
+    assert response.status_code == 200
+    assert response.json() == {
+        "customer_id": cid,
+        "customer_name": PROFILE["name"],
+        "credit_score": score,
+        "minimum_required": 715,
+        "meets_requirement": meets,
+        "points_short": short,
+        "message": message,
+    }
+
+
+def test_credit_score_check_for_missing_customer(client, officer):
+    response = client.get("/api/customers/999999/credit-score", headers=officer)
+    assert response.status_code == 404
 
 
 def test_all_failing_fields_are_listed(client, officer):
@@ -204,6 +244,7 @@ def test_customer_only_reaches_own_data(client, signup, officer):
     for path in (
         f"/api/customers/{b}",
         f"/api/customers/{b}/summary",
+        f"/api/customers/{b}/credit-score",
         f"/api/customers/{b}/loans",
         f"/api/loans/{loan_b}",
         "/api/customers/999999",
@@ -213,6 +254,8 @@ def test_customer_only_reaches_own_data(client, signup, officer):
         assert response.status_code == 403, path
         assert error_of(response) == "FORBIDDEN"
     assert client.get(f"/api/customers/{a}", headers=headers_a).status_code == 200
+    own_score = client.get(f"/api/customers/{a}/credit-score", headers=headers_a)
+    assert own_score.status_code == 200
 
 
 def test_officer_reaches_everything(client, signup, officer):
@@ -221,6 +264,7 @@ def test_officer_reaches_everything(client, signup, officer):
     for path in (
         f"/api/customers/{cid}",
         f"/api/customers/{cid}/summary",
+        f"/api/customers/{cid}/credit-score",
         f"/api/customers/{cid}/loans",
         f"/api/loans/{loan}",
     ):

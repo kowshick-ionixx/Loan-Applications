@@ -27,6 +27,10 @@ class Customer(Base):
         CheckConstraint("name ~ '^[A-Za-z ]+$'", name="ck_customers_name_letters"),
         CheckConstraint("phone ~ '^[0-9]{10}$'", name="ck_customers_phone_10_digits"),
         CheckConstraint("monthly_income > 0", name="ck_customers_income_positive"),
+        CheckConstraint(
+            "credit_score IS NULL OR credit_score BETWEEN 300 AND 900",
+            name="ck_customers_credit_score_range",
+        ),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -36,6 +40,7 @@ class Customer(Base):
     date_of_birth: Mapped[date]
     monthly_income: Mapped[Decimal] = mapped_column(Numeric(12, 2))
     address: Mapped[str | None] = mapped_column(String(255))
+    credit_score: Mapped[int | None]
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
