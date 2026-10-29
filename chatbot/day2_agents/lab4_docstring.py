@@ -12,7 +12,7 @@ SYSTEM_PROMPT = "You are a careful loan assistant. Use tools for every calculati
 
 
 def emi(principal: float, annual_rate_percent: float, tenure_months: int) -> float:
-    r = annual_rate_percent / (12 * 100)  # yearly percent -> monthly decimal
+    r = annual_rate_percent / (12 * 100)
     factor = (1 + r) ** tenure_months
     return round(principal * r * factor / (factor - 1), 2)
 
@@ -27,7 +27,6 @@ def emi_calculator(
     return emi(principal, annual_rate_percent, tenure_months)
 
 
-# Same name, same code, same args: only the docstring is different
 @tool("emi_calculator")
 def vague_emi_calculator(
     principal: float, annual_rate_percent: float, tenure_months: int
