@@ -1,47 +1,47 @@
 ===== Q1: EMI for 3,00,000 at 10.5% for 24 months? =====
   model calls tool : emi_calculator({'principal': 300000, 'annual_rate_percent': 10.5, 'tenure_months': 24})
   tool result      : 13912.81
-  final answer     : The monthly EMI for a loan of ₹3,00,000 at 10.5% interest for 24 months is **₹13,912.81**.
+  final answer     : The monthly EMI for a loan of ₹3,00,000 at 10.5% interest for 24 months is ₹13,912.81.
   tools in order   : emi_calculator
 
-===== Q2: Is C101 eligible for 5,00,000 at 11% for 36 months? =====
-  model calls tool : get_customer({'customer_id': 'C101'})
-  tool result      : {"customer_id": "C101", "name": "Ramesh Kumar", "age": 38, "monthly_income": 85000, "existing_emi": 12000, "credit_score": 745}
+===== Q2: Is customer 161 eligible for 5,00,000 at 11% for 36 months? =====
+  model calls tool : get_customer({'customer_id': '161'})
+  tool result      : {"customer_id": 161, "name": "vetri", "age": 24, "monthly_income": 100000.0, "existing_emi": 4660.78, "credit_score": 725}
   model calls tool : emi_calculator({'principal': 500000, 'annual_rate_percent': 11, 'tenure_months': 36})
   tool result      : 16369.36
-  model calls tool : check_eligibility({'age': 38, 'monthly_income': 85000, 'existing_emi': 12000, 'credit_score': 745, 'new_emi': 16369.36})
-  tool result      : {"eligible": true, "failed_rules": [], "burden_percent": 33.4}
-  final answer     : Yes, Ramesh Kumar (C101) is eligible for the loan. The monthly EMI would be ₹16,369.36, and he meets all eligibility rules with a total EMI burden of 33.4%.
+  model calls tool : check_eligibility({'age': 24, 'monthly_income': 100000, 'existing_emi': 4660.78, 'credit_score': 725, 'new_emi': 16369.36})
+  tool result      : {"eligible": true, "failed_rules": [], "burden_percent": 21.0}
+  final answer     : Yes, customer 161 (Vetri) is eligible for a loan of ₹5,00,000 at 11% for 36 months. The monthly EMI would be ₹16,369.36, and the total debt burden is 21%.
   tools in order   : get_customer, emi_calculator, check_eligibility
 
-===== Q3: Is C103 eligible for 4,00,000 at 11% for 24 months? =====
-  model calls tool : get_customer({'customer_id': 'C103'})
-  tool result      : {"customer_id": "C103", "name": "Imran Sheikh", "age": 52, "monthly_income": 40000, "existing_emi": 22000, "credit_score": 680}
-  model calls tool : emi_calculator({'principal': 400000, 'annual_rate_percent': 11, 'tenure_months': 24})
-  tool result      : 18643.14
-  model calls tool : check_eligibility({'age': 52, 'monthly_income': 40000, 'existing_emi': 22000, 'credit_score': 680, 'new_emi': 18643.14})
-  tool result      : {"eligible": false, "failed_rules": ["Credit score 680 is below 700", "EMI burden 101.6% is above 50% of income"], "burden_percent": 101.6}
-  final answer     : No, C103 (Imran Sheikh) is not eligible for this loan. The eligibility check failed due to the following reasons:
+===== Q3: Is customer 162 eligible for 6,00,000 at 11% for 24 months? =====
+  model calls tool : get_customer({'customer_id': '162'})
+  tool result      : {"customer_id": 162, "name": "agilan", "age": 24, "monthly_income": 45000.0, "existing_emi": 0.0, "credit_score": 701}
+  model calls tool : emi_calculator({'principal': 600000, 'annual_rate_percent': 11, 'tenure_months': 24})
+  tool result      : 27964.7
+  model calls tool : check_eligibility({'age': 24, 'monthly_income': 45000, 'existing_emi': 0, 'credit_score': 701, 'new_emi': 27964.7})
+  tool result      : {"eligible": false, "failed_rules": ["Credit score 701 is below 715", "EMI burden 62.1% is above 50% of income"], "burden_percent": 62.1}
+  final answer     : No, customer 162 (Agilan) is not eligible for this loan. The eligibility check failed due to two rules:
 
-*   **Credit score:** Your credit score of 680 is below the required minimum of 700.
-*   **EMI burden:** Your total monthly EMI would be 101.6% of your income, which exceeds the maximum allowed limit of 50%.
+1. **Credit Score**: Your score of 701 is below the required minimum of 715.
+2. **EMI Burden**: The new EMI of ₹27,964 would be 62.1% of your monthly income, which exceeds the maximum allowed limit of 50%.
   tools in order   : get_customer, emi_calculator, check_eligibility
 
-===== Q4: Is C999 eligible for a loan? =====
-  model calls tool : get_customer({'customer_id': 'C999'})
-  tool result      : Customer C999 not found
-  final answer     : Customer C999 is not found in our system. Please provide a valid customer ID to check eligibility.
+===== Q4: Is customer 999 eligible for a loan? =====
+  model calls tool : get_customer({'customer_id': '999'})
+  tool result      : Customer 999 not found
+  final answer     : Customer 999 is not found in our database. Please provide a valid customer ID to check eligibility.
   tools in order   : get_customer
 
 ===== Q5: What is the capital of France? =====
-  final answer     : I'm sorry, but I can only assist with loan-related inquiries. For questions about geography or other topics, I recommend checking a reliable source like an encyclopedia or educational website.
+  final answer     : I'm sorry, but I can only assist with loan-related inquiries. If you have any questions about loans, please feel free to ask!
   tools in order   : -
 
 ===== Q6: Can I get a loan? =====
   final answer     : To check your eligibility for a loan, I need some details:
 
-1. Your customer ID (e.g., 'C101')
-2. The loan amount you're considering
+1. Your customer ID (if you have one)
+2. The loan amount you're looking for
 3. The interest rate (annual percentage)
 4. The tenure in months
 

@@ -12,12 +12,11 @@ SYSTEM_PROMPT = "You are a careful loan assistant. Use tools for every calculati
 
 
 def emi(principal: float, annual_rate_percent: float, tenure_months: int) -> float:
-    r = annual_rate_percent / (12 * 100)  # yearly percent -> monthly decimal
+    r = annual_rate_percent / (12 * 100)
     factor = (1 + r) ** tenure_months
     return round(principal * r * factor / (factor - 1), 2)
 
 
-# Version 1: the tool raises an exception on bad input
 @tool("emi_calculator")
 def raising_emi_calculator(
     principal: float, annual_rate_percent: float, tenure_months: int
@@ -30,7 +29,6 @@ def raising_emi_calculator(
     return emi(principal, annual_rate_percent, tenure_months)
 
 
-# Version 2: the tool returns a plain message the model can read and act on
 @tool("emi_calculator")
 def friendly_emi_calculator(
     principal: float, annual_rate_percent: float, tenure_months: int

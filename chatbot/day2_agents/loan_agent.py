@@ -1,14 +1,56 @@
 import sys
+from datetime import datetime
 from pathlib import Path
 
 from dotenv import load_dotenv
 from langchain.agents import create_agent
 from langchain.chat_models import init_chat_model
 from langchain.messages import AIMessage, HumanMessage, ToolMessage
-from tools import check_eligibility, emi_calculator, get_customer
+from langchain.tools import tool
+from sqlalchemy import func, select
+from tools import check_eligibility, emi_calculator
+
+load_dotenv(Path(__file__).resolve().parents[2] / ".env")
+from loan_application.db import MAX_ID, SessionLocal
+from loan_application.models import APPROVED, Customer, Loan
+from loan_application.services.loan_service import calculate_age
+
+
+@tool
+def get_customer(customer_id: str) -> dict | str:
+    """Look up a bank customer in the database by their customer ID, e.g. '161'.
+    Returns their name, age, monthly income in rupees, existing monthly EMI
+    in rupees and credit score, or a message saying why it can't.
+
+    customer_id: the customer's ID, a number like '161'
+    """
+    key = customer_id.strip().upper().removeprefix("C")
+    if not key.isdigit() or not 0 < int(key) <= MAX_ID:
+        return f"Customer {customer_id} not found"
+    with SessionLocal() as db:
+        customer = db.get(Customer, int(key))
+        if customer is None:
+            return f"Customer {key} not found"
+        if customer.credit_score is None:
+            return f"Customer {key} has no credit score on file, so eligibility can't be checked"
+        existing_emi = db.execute(
+            select(func.coalesce(func.sum(Loan.emi), 0)).where(
+                Loan.customer_id == customer.id, Loan.status == APPROVED
+            )
+        ).scalar_one()
+        return {
+            "customer_id": customer.id,
+            "name": customer.name,
+            "age": calculate_age(
+                customer.date_of_birth, datetime.now().astimezone().date()
+            ),
+            "monthly_income": float(customer.monthly_income),
+            "existing_emi": float(existing_emi),
+            "credit_score": customer.credit_score,
+        }
+
 
 load_dotenv()
-# temperature=0: the same question should pick the same tools every run
 model = init_chat_model("ollama:qwen3.5:9b", reasoning=False, temperature=0)
 
 TRACES_FILE = Path(__file__).resolve().parent / "traces.txt"
@@ -35,12 +77,11 @@ agent = create_agent(
     system_prompt=SYSTEM_PROMPT,
 )
 
-# The six test questions from the guide
 QUESTIONS = [
     "EMI for 3,00,000 at 10.5% for 24 months?",
-    "Is C101 eligible for 5,00,000 at 11% for 36 months?",
-    "Is C103 eligible for 4,00,000 at 11% for 24 months?",
-    "Is C999 eligible for a loan?",
+    "Is customer 161 eligible for 5,00,000 at 11% for 36 months?",
+    "Is customer 162 eligible for 6,00,000 at 11% for 24 months?",
+    "Is customer 999 eligible for a loan?",
     "What is the capital of France?",
     "Can I get a loan?",
 ]
@@ -52,7 +93,6 @@ def ask(question: str) -> list:
         try:
             result = agent.invoke({"messages": [{"role": "user", "content": question}]})
             return result["messages"]
-        # Any failure (model down, bad tool call) should retry, then fall back
         except Exception as exc:  # noqa: BLE001
             print(f"  attempt {attempt} failed: {exc}")
     return [
@@ -102,7 +142,6 @@ def run_tests() -> None:
     lower = [a.lower() for a in answers]
     elig = ["get_customer", "emi_calculator", "check_eligibility"]
 
-    # 1. One tool call, correct EMI (expected number comes from the tool itself)
     expected = emi_calculator.invoke(
         {"principal": 300000, "annual_rate_percent": 10.5, "tenure_months": 24}
     )
@@ -113,19 +152,16 @@ def run_tests() -> None:
         f"{expected:,.2f}" in answers[0] or str(expected) in answers[0]
     ), f"Q1 should state the EMI {expected}"
 
-    # 2. Three tools in order, eligible
     assert tools[1] == elig, f"Q2 should call {elig} in order, got {tools[1]}"
-    assert "not eligible" not in lower[1], "Q2: C101 is eligible"
+    assert "not eligible" not in lower[1], "Q2: customer 161 is eligible"
 
-    # 3. Three tools in order, not eligible, both failures listed
     assert tools[2] == elig, f"Q3 should call {elig} in order, got {tools[2]}"
-    assert "not eligible" in lower[2], "Q3: C103 is not eligible"
+    assert "not eligible" in lower[2], "Q3: customer 162 is not eligible"
     assert "credit score" in lower[2], "Q3 should list the credit score failure"
     assert (
         "burden" in lower[2] or "50%" in lower[2]
     ), "Q3 should list the burden failure"
 
-    # 4. Customer not found, nothing invented
     assert "get_customer" in tools[3], f"Q4 should look the customer up, got {tools[3]}"
     assert (
         "check_eligibility" not in tools[3]
@@ -136,13 +172,10 @@ def run_tests() -> None:
         or "could not find" in lower[3]
     ), "Q4 should say the customer was not found"
 
-    # 5. Off topic: politely declines, no tools
     assert not tools[4], f"Q5 shouldn't use any tool, got {tools[4]}"
     assert "paris" not in lower[4], "Q5 should decline, not answer the question"
 
-    # 6. Missing details: asks for them, calls no tool with guessed values
     assert not tools[5], f"Q6 shouldn't call any tool, got {tools[5]}"
-    # A question can end with "?" or be a request like "Please provide..."
     assert (
         "?" in answers[5] or "provide" in lower[5]
     ), "Q6 should ask the user for the missing details"
@@ -166,7 +199,7 @@ def chat() -> None:
             continue
 
         history.append(HumanMessage(question))
-        start = len(history)  # messages after this one are new for this question
+        start = len(history)
         try:
             history = agent.invoke({"messages": history})["messages"]
         except Exception as exc:  # noqa: BLE001
@@ -185,8 +218,14 @@ def chat() -> None:
 
 
 if __name__ == "__main__":
-    # --chat: type your own questions; no flag: run the guide's six test questions
-    if "--chat" in sys.argv:
-        chat()
-    else:
-        run_tests()
+    start = datetime.now().astimezone()
+    print(f"Start time: {start:%Y-%m-%d %H:%M:%S}\n")
+    try:
+        if "--chat" in sys.argv:
+            chat()
+        else:
+            run_tests()
+    finally:
+        end = datetime.now().astimezone()
+        print(f"\nEnd time  : {end:%Y-%m-%d %H:%M:%S}")
+        print(f"Time taken: {(end - start).total_seconds():.1f} seconds")

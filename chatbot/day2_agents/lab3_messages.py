@@ -15,7 +15,7 @@ def emi_calculator(
     """Calculate the monthly EMI of a loan.
     principal is in rupees, annual_rate_percent is like 11 for 11 percent,
     tenure_months is the loan length in months."""
-    r = annual_rate_percent / (12 * 100)  # yearly percent -> monthly decimal
+    r = annual_rate_percent / (12 * 100)
     factor = (1 + r) ** tenure_months
     return round(principal * r * factor / (factor - 1), 2)
 
