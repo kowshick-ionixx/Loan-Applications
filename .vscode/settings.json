@@ -1,3 +1,3 @@
 {
-    "python.analysis.extraPaths": ["chatbot/day2_agents", "chatbot/day3_rag"]
+    "python.analysis.extraPaths": ["chatbot/day1_langchain", "chatbot/day2_agents", "chatbot/day3_rag"]
 }
