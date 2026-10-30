@@ -1,0 +1,69 @@
+===== Case 1: customer 161, expected approve =====
+Email    : Hi, I need a loan of 5 lakh rupees for 3 years to renovate my house.
+Decision : approve  [OK]
+Reason   : All eligibility rules passed. Monthly EMI 16,369.36 at 11%.
+Log:
+  intake: amount=500000.0, tenure=36, missing=['customer_name']
+  validate: ok, customer vetri
+  score: EMI 16,369.36, burden 21.0%, failed=[]
+  approve
+
+===== Case 2: customer 161, expected refer =====
+Email    : Looking for Rs 12,00,000 personal loan, repayment over 60 months.
+Decision : refer  [OK]
+Reason   : Referred for review: amount 1,200,000 is above 1,000,000 (policy 2.3).
+Log:
+  intake: amount=1200000.0, tenure=60, missing=['customer_name']
+  validate: ok, customer vetri
+  score: EMI 26,090.91, burden 30.8%, failed=[]
+  refer
+
+===== Case 3: customer 162, expected reject =====
+Email    : I need 10 lakh for 36 months for my business.
+Decision : reject  [OK]
+Reason   : Not eligible: EMI burden 72.8% is above 50% of income.
+Log:
+  intake: amount=1000000.0, tenure=36, missing=['customer_name']
+  validate: ok, customer agilan
+  score: EMI 32,738.72, burden 72.8%, failed=['EMI burden 72.8% is above 50% of income']
+  reject
+
+===== Case 4: customer 162, expected refer =====
+Email    : Need 2 lakh, can repay in 24 months.
+Decision : refer  [OK]
+Reason   : Referred for review: credit score 701 is between 650 and 719 (policy 1.3).
+Log:
+  intake: amount=200000.0, tenure=24, missing=['customer_name', 'purpose']
+  validate: ok, customer agilan
+  score: EMI 9,321.57, burden 20.7%, failed=[]
+  refer
+
+===== Case 5: customer 161, expected need_info =====
+Email    : I want a loan for a car
+Decision : need_info  [OK]
+Reason   : More information needed: missing loan amount; missing tenure.
+Log:
+  intake: amount=None, tenure=None, missing=['customer_name', 'amount', 'tenure_months']
+  validate: missing loan amount; missing tenure
+  need_info
+
+===== Case 6: customer 999, expected need_info =====
+Email    : I need 3 lakh for 2 years.
+Decision : need_info  [OK]
+Reason   : More information needed: Customer 999 not found.
+Log:
+  intake: amount=300000.0, tenure=24, missing=['customer_name', 'purpose']
+  validate: Customer 999 not found
+  need_info
+
+6/6 decisions match.
+
+===== Rule checks (no model) =====
+credit score 670 (policy 1.3)    -> refer     [OK]  Referred for review: credit score 670 is between 650 and 719 (policy 1.3).
+credit score 719 (policy 1.3)    -> refer     [OK]  Referred for review: credit score 719 is between 650 and 719 (policy 1.3).
+credit score 720 (eligible)      -> approve   [OK]  All eligibility rules passed. Monthly EMI 9,821.62 at 11%.
+credit score 640                 -> reject    [OK]  Not eligible: Credit score 640 is below 650.
+amount 20,00,000 (policy 2.1)    -> reject    [OK]  Not eligible: Amount 2,000,000 is outside 50,000 to 1,500,000 (policy 2.1); EMI burden 73.5% is above 50% of income.
+tenure 72 months (policy 2.2)    -> reject    [OK]  Not eligible: Tenure 72 months is outside 12 to 60 (policy 2.2).
+amount 0                         -> need_info [OK]  More information needed: loan amount must be above 0.
+tenure -12                       -> need_info [OK]  More information needed: tenure must be above 0.
