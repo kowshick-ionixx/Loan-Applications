@@ -36,10 +36,10 @@ prompt = ChatPromptTemplate.from_messages(
         ("human", "{email}"),
     ]
 )
-# function_calling: this local model drops values with the default json_schema method
+
 extractor = model.with_structured_output(LoanEnquiry, method="function_calling")
 
-# --- Part 1: chain + batch ---
+
 chain = prompt | extractor
 
 emails = [
@@ -57,7 +57,7 @@ print(f"batch returned {len(results)} objects")
 for r in results:
     print(type(r).__name__, r.model_dump())
 
-# --- Part 2: streaming ---
+
 print("\nStreaming:")
 for chunk in model.stream("In two sentences, explain what an EMI is."):
     print(chunk.content, end="", flush=True)

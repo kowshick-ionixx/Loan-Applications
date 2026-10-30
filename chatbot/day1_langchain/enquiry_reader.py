@@ -8,7 +8,7 @@ from langchain_core.runnables import RunnableLambda
 from pydantic import BaseModel, Field
 
 load_dotenv()
-# temperature=0: extraction should give the same answer every run, not a creative one
+
 model = init_chat_model("ollama:qwen3.5:9b", reasoning=False, temperature=0)
 
 ENQUIRIES_FILE = Path(__file__).resolve().parent.parent / "data" / "enquiries.txt"
@@ -59,7 +59,7 @@ prompt = ChatPromptTemplate.from_messages(
         ("human", "{email}"),
     ]
 )
-# function_calling: measured 5/5 correct on this model, vs 2/5 with the default json_schema
+
 chain = prompt | model.with_structured_output(LoanEnquiry, method="function_calling")
 
 
@@ -75,15 +75,15 @@ def read_enquiry(text: str) -> LoanEnquiry:
             if not text or not text.strip():
                 raise ValueError("enquiry text is empty")
             result = chain.invoke({"email": text})
-            # Don't trust the model's own list: work it out from the fields it left empty
+
             result.missing_fields = [
                 f for f in CORE_FIELDS if getattr(result, f) is None
             ]
-            # An enquiry with missing details can't be high confidence
+
             if result.missing_fields and result.confidence == "high":
                 result.confidence = "medium"
             return result
-        # Any failure (empty text, model down, bad output) should retry, then fall back
+
         except Exception as exc:  # noqa: BLE001
             print(f"  attempt {attempt} failed: {exc}")
     return could_not_read()
@@ -111,7 +111,6 @@ if __name__ == "__main__":
         if line.strip()
     ]
 
-    # RunnableLambda turns read_enquiry into a Runnable, so it gets .batch() with retry per email
     results = RunnableLambda(read_enquiry).batch(emails)
 
     table = format_table(results)
@@ -127,7 +126,6 @@ if __name__ == "__main__":
     )
     print(f"Saved to {RESULTS_FILE.name}")
 
-    # Checks from the assignment
     for i in (0, 1):
         assert not results[
             i

@@ -1,0 +1,3 @@
+{
+    "python.analysis.extraPaths": ["chatbot/day2_agents", "chatbot/day3_rag"]
+}

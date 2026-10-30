@@ -21,10 +21,9 @@ class LoanEnquiry(BaseModel):
     purpose: str | None = Field(None, description="Why the loan is needed")
 
 
-# function_calling: this local model drops values with the default json_schema method
 extractor = model.with_structured_output(LoanEnquiry, method="function_calling")
 
-# The system message tells the model its job; without it, it doesn't know to extract
+
 instructions = SystemMessage(
     "Extract the loan enquiry details from the customer's email. "
     "1 lakh = 100000 rupees, 'L' means lakh, 1 crore = 10000000 rupees. "
@@ -39,7 +38,7 @@ print(result)
 if result.amount is not None:
     print("Amount + 1 =", result.amount + 1)  # proves it's a real number, not text
 
-# A vague email: the missing boxes should come back as None
+
 vague = extractor.invoke(
     [
         instructions,
