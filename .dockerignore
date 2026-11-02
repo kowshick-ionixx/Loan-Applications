@@ -1,4 +1,5 @@
 .env
+**/.env
 .git
 .github
 .venv
@@ -9,3 +10,6 @@
 .coverage
 htmlcov
 tests
+chatbot
+docs
+reports

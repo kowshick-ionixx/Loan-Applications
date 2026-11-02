@@ -58,7 +58,7 @@ def get_customer_summary(
 def get_credit_score(
     customer_id: PositiveId, db: DbSession, user: ProfileUser
 ) -> CreditScoreCheck:
-    """Shows the customer's credit score and whether it meets the minimum (715)
+    """Shows the customer's credit score and whether it meets the minimum (720)
     needed for loan approval. Only the credit-score rule is checked: age,
     income and active loans still apply when a loan is requested."""
     return loan_service.check_credit_score(db, customer_id, user)

@@ -25,7 +25,7 @@ MIN_AGE = 21
 MAX_AGE = 60
 MAX_INCOME_MULTIPLE = 20
 MAX_ACTIVE_LOANS = 2
-MIN_CREDIT_SCORE = 715
+MIN_CREDIT_SCORE = 720
 LOW_RISK_BELOW = 30
 HIGH_RISK_ABOVE = 50
 CENTS = Decimal("0.01")
@@ -62,7 +62,7 @@ def check_eligibility(
     if customer.credit_score is None:
         return "Credit score is not available"
     if customer.credit_score < MIN_CREDIT_SCORE:
-        return "Credit score must be at least 715"
+        return f"Credit score must be at least {MIN_CREDIT_SCORE}"
     return None
 
 

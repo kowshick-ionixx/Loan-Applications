@@ -3,7 +3,7 @@ from langchain.tools import tool
 MIN_AGE = 21
 MAX_AGE = 60
 MIN_INCOME = 25000
-MIN_CREDIT_SCORE = 715
+MIN_CREDIT_SCORE = 720
 MAX_BURDEN_PERCENT = 50
 
 

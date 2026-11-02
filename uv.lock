@@ -1412,10 +1412,22 @@ wheels = [
 name = "loan-application"
 version = "0.1.0"
 source = { editable = "." }
+default-groups = ["chatbot", "dev"]
 dependencies = [
     { name = "alembic" },
-    { name = "coverage" },
     { name = "fastapi", extra = ["standard"] },
+    { name = "psycopg", extra = ["binary"] },
+    { name = "pwdlib", extra = ["argon2"] },
+    { name = "pydantic", extra = ["email"] },
+    { name = "pydantic-settings" },
+    { name = "pyjwt" },
+    { name = "python-multipart" },
+    { name = "sqlalchemy" },
+    { name = "uvicorn", extra = ["standard"] },
+]
+
+[package.dev-dependencies]
+chatbot = [
     { name = "langchain" },
     { name = "langchain-community" },
     { name = "langchain-ollama" },
@@ -1423,20 +1435,9 @@ dependencies = [
     { name = "langgraph" },
     { name = "langgraph-checkpoint-sqlite" },
     { name = "ollama" },
-    { name = "psycopg", extra = ["binary"] },
-    { name = "pwdlib", extra = ["argon2"] },
-    { name = "pydantic", extra = ["email"] },
-    { name = "pydantic-settings" },
-    { name = "pyjwt" },
     { name = "pypdf" },
-    { name = "pytest" },
     { name = "python-dotenv" },
-    { name = "python-multipart" },
-    { name = "sqlalchemy" },
-    { name = "uvicorn", extra = ["standard"] },
 ]
-
-[package.dev-dependencies]
 dev = [
     { name = "black" },
     { name = "coverage" },
@@ -1450,8 +1451,19 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "alembic", specifier = ">=1.20.0" },
-    { name = "coverage", specifier = ">=7.16.2" },
     { name = "fastapi", extras = ["standard"], specifier = ">=0.142.2" },
+    { name = "psycopg", extras = ["binary"], specifier = ">=3.3.6" },
+    { name = "pwdlib", extras = ["argon2"], specifier = ">=0.3.1" },
+    { name = "pydantic", extras = ["email"], specifier = ">=2.13.5" },
+    { name = "pydantic-settings", specifier = ">=2.15.0" },
+    { name = "pyjwt", specifier = ">=2.15.1" },
+    { name = "python-multipart", specifier = ">=0.0.32" },
+    { name = "sqlalchemy", specifier = ">=2.1.3" },
+    { name = "uvicorn", extras = ["standard"], specifier = ">=0.54.0" },
+]
+
+[package.metadata.requires-dev]
+chatbot = [
     { name = "langchain", specifier = ">=1.4.7" },
     { name = "langchain-community", specifier = ">=0.4.2" },
     { name = "langchain-ollama", specifier = ">=1.1.0" },
@@ -1459,20 +1471,9 @@ requires-dist = [
     { name = "langgraph", specifier = ">=1.2.18" },
     { name = "langgraph-checkpoint-sqlite", specifier = ">=3.1.2" },
     { name = "ollama", specifier = ">=0.6.3" },
-    { name = "psycopg", extras = ["binary"], specifier = ">=3.3.6" },
-    { name = "pwdlib", extras = ["argon2"], specifier = ">=0.3.1" },
-    { name = "pydantic", extras = ["email"], specifier = ">=2.13.5" },
-    { name = "pydantic-settings", specifier = ">=2.15.0" },
-    { name = "pyjwt", specifier = ">=2.15.1" },
     { name = "pypdf", specifier = ">=6.21.3" },
-    { name = "pytest", specifier = ">=9.1.1" },
     { name = "python-dotenv", specifier = ">=1.2.4" },
-    { name = "python-multipart", specifier = ">=0.0.32" },
-    { name = "sqlalchemy", specifier = ">=2.1.3" },
-    { name = "uvicorn", extras = ["standard"], specifier = ">=0.54.0" },
 ]
-
-[package.metadata.requires-dev]
 dev = [
     { name = "black", specifier = ">=26.10.1" },
     { name = "coverage", specifier = ">=7.16.2" },

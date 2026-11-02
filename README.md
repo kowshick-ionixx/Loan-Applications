@@ -632,7 +632,7 @@ Router  →  Service  →  Repository  →  Database
 
 **Eligibility rules**
 *Definition:* Conditions an applicant must meet to be approved.
-*In this project:* Age 21–60, amount ≤ 20 × monthly income, fewer than 2 approved loans, credit score ≥ 715. The first failing rule becomes the `rejection_reason`.
+*In this project:* Age 21–60, amount ≤ 20 × monthly income, fewer than 2 approved loans, credit score ≥ 720. The first failing rule becomes the `rejection_reason`.
 
 **Age calculation**
 *Definition:* Completed years: subtract birth year from current year, minus one if this year's birthday hasn't happened yet.
@@ -662,7 +662,7 @@ Router  →  Service  →  Repository  →  Database
 
 **`pyproject.toml`**
 *Definition:* The standard file that describes a Python project: name, Python version, dependencies, tool settings.
-*In this project:* Lists runtime dependencies, a `dev` dependency group (pytest, Ruff, black, pre-commit, ...), the build backend, and Ruff/pytest settings.
+*In this project:* Lists the API's runtime dependencies, a `dev` dependency group (pytest, Ruff, black, pre-commit, ...), a `chatbot` group (LangChain, LangGraph, Ollama for `chatbot/`), the build backend, and Ruff/pytest settings.
 
 **Lock file (`uv.lock`)**
 *Definition:* Pins the exact version of every package, including indirect ones, so every machine installs the same set.
@@ -674,7 +674,7 @@ Router  →  Service  →  Repository  →  Database
 
 **Dependency group (`dev`)**
 *Definition:* Packages needed only for development, not to run the app.
-*In this project:* Installed by `uv sync`; skipped in the Docker image with `--no-dev`.
+*In this project:* Installed by `uv sync` (with the `chatbot` group); both are skipped in the Docker image with `--no-default-groups`.
 
 **Build backend**
 *Definition:* The tool that turns the project into an installable package.
@@ -704,7 +704,7 @@ Router  →  Service  →  Repository  →  Database
 
 **`.dockerignore`**
 *Definition:* Files Docker must never send into the build.
-*In this project:* `.env` (secrets), `.git`, `.venv`, caches and `tests/`.
+*In this project:* `.env` files (secrets), `.git`, `.venv`, caches, `tests/`, `chatbot/` and `docs/`.
 
 **`ENTRYPOINT` vs `CMD` and `exec "$@"`**
 *Definition:* `ENTRYPOINT` always runs; `CMD` is the default arguments passed to it. `exec "$@"` in a shell script replaces the script with the given command, so that command receives stop signals directly.
@@ -897,6 +897,7 @@ Loan-Applications/
 │   ├── entrypoint.sh            # migrate → seed → start server
 │   └── initdb/create-test-db.sql  # creates app_db_test on first start
 ├── docs/adr/                    # Architecture decision records
+├── chatbot/                     # LangChain & LangGraph course work (see chatbot/README.md)
 ├── .github/workflows/ci.yml     # CI pipeline
 ├── Dockerfile
 ├── docker-compose.yml
@@ -1210,7 +1211,7 @@ Every endpoint except `/health`, `/auth/register` and `/auth/login` needs `Autho
 | GET | `/api/customers/{id}` | OFFICER any; CUSTOMER own | `200` the customer |
 | GET | `/api/customers/{id}/loans?status=` | OFFICER any; CUSTOMER own | `200` list of loans, oldest first |
 | GET | `/api/customers/{id}/summary` | OFFICER any; CUSTOMER own | `200` the loan summary |
-| GET | `/api/customers/{id}/credit-score` | OFFICER any; CUSTOMER own | `200` the score and whether it meets the 715 minimum |
+| GET | `/api/customers/{id}/credit-score` | OFFICER any; CUSTOMER own | `200` the score and whether it meets the 720 minimum |
 | POST | `/api/loans` | OFFICER any; CUSTOMER own `customer_id` | `201` the loan (APPROVED or REJECTED) |
 | GET | `/api/loans/{id}` | OFFICER any; CUSTOMER own | `200` the loan |
 | GET | `/api/loans?status=&page=&size=` | OFFICER all; CUSTOMER own | `200 {items, page, size, total, pages}` |
@@ -1275,7 +1276,7 @@ The rules are checked in this order, and the first one that fails becomes the `r
 1. Age must be between **21 and 60**.
 2. Amount must not exceed **20 × monthly income**.
 3. The customer must have fewer than **2 APPROVED** (active) loans.
-4. Credit score must be at least **715** (a customer with no score is rejected with "Credit score is not available").
+4. Credit score must be at least **720** (a customer with no score is rejected with "Credit score is not available").
 
 Both approved and rejected applications are saved and return `201`.
 

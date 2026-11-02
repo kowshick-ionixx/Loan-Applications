@@ -107,8 +107,8 @@ the case to `need_info` instead of to a wrong approval.
   rules. The guide's Day 4 rules do not list them, but the policy does, and
   without them a 600-month loan was approved.
 - The age, income and burden limits are imported from Day 2 `tools.py`; the
-  credit limits (650 reject, 720 eligible) are set in `nodes.py`, not the 715
-  from Day 2.
+  credit limits (650 reject, 720 eligible) are set in `nodes.py`; 720 is the
+  same minimum the API and Day 2 use.
 
 ## Model and tracing
 

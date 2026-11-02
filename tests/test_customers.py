@@ -47,9 +47,9 @@ def test_credit_score_is_saved(client, officer, score):
 @pytest.mark.parametrize(
     ("score", "meets", "short", "message"),
     [
-        (715, True, 0, "Credit score 715 meets the minimum of 715"),
-        (900, True, 0, "Credit score 900 meets the minimum of 715"),
-        (714, False, 1, "Credit score 714 is below the minimum of 715"),
+        (720, True, 0, "Credit score 720 meets the minimum of 720"),
+        (900, True, 0, "Credit score 900 meets the minimum of 720"),
+        (719, False, 1, "Credit score 719 is below the minimum of 720"),
         (None, False, None, "No credit score on file"),
     ],
 )
@@ -61,7 +61,7 @@ def test_credit_score_check(client, officer, score, meets, short, message):
         "customer_id": cid,
         "customer_name": PROFILE["name"],
         "credit_score": score,
-        "minimum_required": 715,
+        "minimum_required": 720,
         "meets_requirement": meets,
         "points_short": short,
         "message": message,

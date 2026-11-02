@@ -16,13 +16,9 @@ Friday joins them together.
 1. Install and start [Ollama](https://ollama.com), then pull the model:
    `ollama pull qwen3.5:9b`
 2. Install dependencies from the repo root: `uv sync`
-3. Create `chatbot/.env` (git-ignored) with:
-
-   ```
-   LANGSMITH_TRACING=true
-   LANGSMITH_API_KEY=<your key>
-   LANGSMITH_PROJECT=langchain-week
-   ```
+3. Create `chatbot/.env` (git-ignored) from the template and add your LangSmith key:
+   `copy .env.example .env`. The customer database (Day 2 and Day 4) is read
+   from `DATABASE_URL` in the root `.env`, so the database container must be running.
 
 4. Smoke test, from this folder: `uv run python hello.py`
 

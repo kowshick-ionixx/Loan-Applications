@@ -23,7 +23,7 @@ INCOME_REASON = "Requested amount exceeds 20x monthly income"
 ACTIVE_REASON = "Customer already has 2 active loans"
 
 
-CREDIT_REASON = "Credit score must be at least 715"
+CREDIT_REASON = "Credit score must be at least 720"
 
 
 NO_SCORE_REASON = "Credit score is not available"
@@ -342,8 +342,8 @@ def test_active_loans_rule(approved_count, expected):
     [
         (None, NO_SCORE_REASON),
         (300, CREDIT_REASON),
-        (714, CREDIT_REASON),
-        (715, None),
+        (719, CREDIT_REASON),
+        (720, None),
         (900, None),
     ],
 )
