@@ -1,8 +1,6 @@
 import sys
 
-from langgraph.graph import StateGraph, START, END
-
-from state import LoanState
+from langgraph.graph import END, START, StateGraph
 from nodes import (
     approve,
     intake,
@@ -13,6 +11,7 @@ from nodes import (
     score,
     validate,
 )
+from state import LoanState
 
 
 def after_validate(state: LoanState):
@@ -67,7 +66,9 @@ def prescreen(customer_id: str, email: str) -> dict:
 def chat() -> None:
     """Type a customer ID and an enquiry; the graph pre-screens it. Type exit to quit."""
     print("Loan Pre-Screening. Type 'exit' to quit.")
-    print("Loan request: what the customer wants, e.g. 'I need 5 lakh for 3 years for my house'")
+    print(
+        "Loan request: what the customer wants, e.g. 'I need 5 lakh for 3 years for my house'"
+    )
     while True:
         try:
             customer_id = input("\nCustomer ID  : ").strip()

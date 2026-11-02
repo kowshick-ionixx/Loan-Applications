@@ -1,11 +1,12 @@
 import sys
 from pathlib import Path
 
+sys.path.append(str(Path(__file__).resolve().parent.parent / "day1_langchain"))
 sys.path.append(str(Path(__file__).resolve().parent.parent / "day2_agents"))
 
-from state import LoanState
 from enquiry_reader import read_enquiry
 from loan_agent import get_customer
+from state import LoanState
 from tools import MAX_AGE, MAX_BURDEN_PERCENT, MIN_AGE, MIN_INCOME, emi_calculator
 
 RATE_PERCENT = 11
@@ -38,8 +39,10 @@ def intake(state: LoanState):
     return {
         "enquiry": enquiry,
         "log": [
-            f"intake: amount={enquiry.amount}, tenure={enquiry.tenure_months}, "
-            f"missing={enquiry.missing_fields}"
+            (
+                f"intake: amount={enquiry.amount}, tenure={enquiry.tenure_months}, "
+                f"missing={enquiry.missing_fields}"
+            )
         ],
     }
 
@@ -112,9 +115,7 @@ def score(state: LoanState):
 
 
 def approve(state: LoanState):
-    reason = (
-        f"All eligibility rules passed. Monthly EMI {state['emi']:,.2f} at {RATE_PERCENT}%."
-    )
+    reason = f"All eligibility rules passed. Monthly EMI {state['emi']:,.2f} at {RATE_PERCENT}%."
     return {"decision": "approve", "reason": reason, "log": ["approve"]}
 
 
@@ -131,4 +132,3 @@ def reject(state: LoanState):
 def need_info(state: LoanState):
     reason = "More information needed: " + "; ".join(state["problems"]) + "."
     return {"decision": "need_info", "reason": reason, "log": ["need_info"]}
-

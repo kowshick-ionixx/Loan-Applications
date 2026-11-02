@@ -6,7 +6,7 @@ from typing import Annotated, TypedDict
 sys.path.append(str(Path(__file__).resolve().parent.parent / "day1_langchain"))
 
 from enquiry_reader import LoanEnquiry, read_enquiry
-from langgraph.graph import StateGraph, START, END
+from langgraph.graph import END, START, StateGraph
 
 
 class State(TypedDict):

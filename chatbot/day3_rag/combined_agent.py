@@ -40,7 +40,7 @@ def chat() -> None:
 
         try:
             history = agent.invoke({"messages": history})["messages"]
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             print(f"Agent : Sorry, something went wrong ({exc}). Please try again.")
             history.pop()
             continue

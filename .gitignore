@@ -22,3 +22,6 @@ reports/
 htmlcov/
 
 .env
+
+# Local nested copy of the repo, not part of this project
+Loan-Application-Service/

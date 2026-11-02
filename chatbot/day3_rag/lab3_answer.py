@@ -28,12 +28,14 @@ prompt = ChatPromptTemplate.from_messages(
     [
         (
             "system",
-            "You are a loan policy assistant. "
-            "Answer ONLY from the context below. "
-            "Cite the section number for every fact, like (5.1). "
-            "If the answer is not in the context, say: I could not find this in the policy. "
-            "Do not guess.\n\n"
-            "Context:\n{context}",
+            (
+                "You are a loan policy assistant. "
+                "Answer ONLY from the context below. "
+                "Cite the section number for every fact, like (5.1). "
+                "If the answer is not in the context, say: I could not find this in the policy. "
+                "Do not guess.\n\n"
+                "Context:\n{context}"
+            ),
         ),
         ("human", "{question}"),
     ]

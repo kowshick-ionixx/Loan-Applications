@@ -1,6 +1,6 @@
 from typing import TypedDict
 
-from langgraph.graph import StateGraph, START, END
+from langgraph.graph import END, START, StateGraph
 
 
 class State(TypedDict):
@@ -38,7 +38,10 @@ builder.add_edge("short_reply", END)
 builder.add_edge("long_reply", END)
 graph = builder.compile()
 
-for text in ["Need a loan", "I need a loan of 5 lakh rupees for 3 years to renovate my house"]:
+for text in [
+    "Need a loan",
+    "I need a loan of 5 lakh rupees for 3 years to renovate my house",
+]:
     print(f"\nInput: {text!r}")
     for step in graph.stream({"text": text}, stream_mode="updates"):
         print(step)
