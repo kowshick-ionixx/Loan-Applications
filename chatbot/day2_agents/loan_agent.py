@@ -1,19 +1,26 @@
 import sys
 from datetime import datetime
+from getpass import getpass
 from pathlib import Path
 
 from dotenv import load_dotenv
 from langchain.agents import create_agent
 from langchain.chat_models import init_chat_model
-from langchain.messages import AIMessage, HumanMessage, ToolMessage
+from langchain.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain.tools import tool
 from sqlalchemy import func, select
 from tools import check_eligibility, emi_calculator
 
 load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 from loan_application.db import MAX_ID, SessionLocal
-from loan_application.models import APPROVED, Customer, Loan
+from loan_application.models import APPROVED, Customer, Loan, UserRole
+from loan_application.services.auth_service import authenticate_user
 from loan_application.services.loan_service import calculate_age
+
+MAX_LOGIN_ATTEMPTS = 3
+
+# Who is logged in to the chat. None means no login (the automated tests).
+current_user: dict | None = None
 
 
 @tool
@@ -27,6 +34,12 @@ def get_customer(customer_id: str) -> dict | str:
     key = customer_id.strip().upper().removeprefix("C")
     if not key.isdigit() or not 0 < int(key) <= MAX_ID:
         return f"Customer {customer_id} not found"
+    if (
+        current_user
+        and current_user["role"] == UserRole.CUSTOMER
+        and int(key) != current_user["customer_id"]
+    ):
+        return "Access denied: customers can only look up their own details"
     with SessionLocal() as db:
         customer = db.get(Customer, int(key))
         if customer is None:
@@ -184,10 +197,50 @@ def run_tests() -> None:
     print("\nAll asserts passed.")
 
 
+def login() -> dict | None:
+    """Ask for a username and password. Returns the logged-in user, or None after 3 failed tries."""
+    global current_user
+    for attempt in range(1, MAX_LOGIN_ATTEMPTS + 1):
+        username = input("Username: ").strip()
+        password = getpass("Password: ")
+        with SessionLocal() as db:
+            user = authenticate_user(db, username, password)
+            if user is not None:
+                if user.role == UserRole.CUSTOMER and user.customer_id is None:
+                    print("This login has no customer profile yet. Ask an officer.")
+                    return None
+                current_user = {
+                    "username": user.username,
+                    "role": user.role,
+                    "customer_id": user.customer_id,
+                }
+                return current_user
+        print(f"Invalid username or password ({attempt}/{MAX_LOGIN_ATTEMPTS}).")
+    return None
+
+
 def chat() -> None:
-    """Type your own questions. The agent remembers the conversation until you type exit."""
-    print("Loan Helper Agent. Ask any question, or type 'exit' to quit.")
-    history = []
+    """Log in, then type your own questions. The agent remembers the conversation until you type exit."""
+    print("Loan Helper Agent. Please log in.")
+    user = login()
+    if user is None:
+        print("Login failed.")
+        return
+
+    if user["role"] == UserRole.OFFICER:
+        print(
+            f"Logged in as officer '{user['username']}'. You can look up any customer."
+        )
+        note = "The logged-in user is a bank officer. They may ask about any customer."
+    else:
+        cid = user["customer_id"]
+        print(f"Logged in as customer '{user['username']}' (customer ID {cid}).")
+        note = (
+            f"The logged-in user is customer {cid}. Their customer ID is {cid}; use it "
+            "without asking. They may only ask about their own details."
+        )
+    print("Ask any question, or type 'exit' to quit.")
+    history = [SystemMessage(note)]
     while True:
         try:
             question = input("\nYou   : ").strip()
