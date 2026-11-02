@@ -10,7 +10,7 @@ loans, asks for missing details instead of guessing, and says plainly when a
 customer is not found.
 
 Eligibility rules (the tool checks all of them and lists every failure): age
-21 to 60, income at least 25,000 a month, credit score at least 700, and
+21 to 60, income at least 25,000 a month, credit score at least 720, and
 existing EMI plus new EMI at most 50% of monthly income.
 
 ## How to run
