@@ -16,6 +16,9 @@ wheels/
 # Local secrets
 .env
 
+# LangGraph checkpoint database (Day 5)
+checkpoints.db
+
 # Test reports
 reports/
 .coverage

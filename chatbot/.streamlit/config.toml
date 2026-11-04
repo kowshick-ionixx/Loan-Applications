@@ -1,0 +1,7 @@
+# Read when Streamlit is started from the chatbot/ folder.
+[server]
+# No first-run "Email:" prompt in the terminal; open the URL it prints instead.
+headless = true
+
+[browser]
+gatherUsageStats = false
